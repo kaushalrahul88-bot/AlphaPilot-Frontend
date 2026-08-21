@@ -8,6 +8,7 @@ import { Options } from '@/pages/Options';
 import { PositionSizing } from '@/pages/PositionSizing';
 import { TradeScannerWithGift } from '@/pages/TradeScannerWithGift';
 import { Backtest } from '@/pages/Backtest';
+import { DirectionDiagnosticsPage } from '@/pages/DirectionDiagnosticsPage';
 import { TradeSetup } from '@/pages/TradeSetup';
 import { Journal } from '@/pages/Journal';
 import { RiskCenter } from '@/pages/RiskCenter';
@@ -30,6 +31,7 @@ function AppContent() {
       case 'ai-analyst': return <AIAnalyst />;
       case 'trade-scanner': return <TradeScannerWithGift onNavigate={setPage} />;
       case 'backtest': return <Backtest />;
+      case 'direction-diagnostics': return <DirectionDiagnosticsPage />;
       case 'trade-setup': return <TradeSetup />;
       case 'position-sizing': return <PositionSizing />;
       case 'journal': return <Journal />;
