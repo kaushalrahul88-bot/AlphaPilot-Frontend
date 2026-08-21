@@ -1,7 +1,7 @@
-import { LayoutDashboard, LineChart, Wallet, Layers, Brain, Target, Calculator, BookOpen, ShieldAlert, Newspaper, Bell, Settings, Menu, X, ScanLine, FlaskConical } from 'lucide-react';
+import { LayoutDashboard, LineChart, Wallet, Layers, Brain, Target, Calculator, BookOpen, ShieldAlert, Newspaper, Bell, Settings, Menu, X, ScanLine, FlaskConical, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 
-export type PageKey = 'dashboard' | 'markets' | 'portfolio' | 'options' | 'ai-analyst' | 'trade-scanner' | 'backtest' | 'trade-setup' | 'position-sizing' | 'journal' | 'risk' | 'news' | 'alerts' | 'settings';
+export type PageKey = 'dashboard' | 'markets' | 'portfolio' | 'options' | 'ai-analyst' | 'trade-scanner' | 'backtest' | 'direction-diagnostics' | 'trade-setup' | 'position-sizing' | 'journal' | 'risk' | 'news' | 'alerts' | 'settings';
 
 const NAV_ITEMS: { key: PageKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -11,6 +11,7 @@ const NAV_ITEMS: { key: PageKey; label: string; icon: typeof LayoutDashboard }[]
   { key: 'ai-analyst', label: 'AI Analyst', icon: Brain },
   { key: 'trade-scanner', label: 'Trade Scanner', icon: ScanLine },
   { key: 'backtest', label: 'Backtest', icon: FlaskConical },
+  { key: 'direction-diagnostics', label: 'Direction Diagnostics', icon: BarChart3 },
   { key: 'trade-setup', label: 'Trade Setup', icon: Target },
   { key: 'position-sizing', label: 'Position Sizing', icon: Calculator },
   { key: 'journal', label: 'Trading Journal', icon: BookOpen },
