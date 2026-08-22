@@ -98,7 +98,6 @@ export interface MarketNewsResponse {
   items: Record<string, MarketNewsItem[]>;
 }
 
-// Backward-compatible aliases used by Trade Setup News.
 export type TradeNewsItem = MarketNewsItem;
 export type TradeNewsResponse = MarketNewsResponse;
 
@@ -189,6 +188,11 @@ export function getHealth() {
   return requestJson<{ ok: boolean; service: string; version: string; provider: string }>('/health');
 }
 
+export function getOptionChain(symbol: string, expiry?: string | null) {
+  const params = expiry ? `?expiry=${encodeURIComponent(expiry)}` : '';
+  return requestJson<any>(`/v1/options/${encodeURIComponent(symbol.trim().toUpperCase())}${params}`);
+}
+
 export async function scanMtf(symbols: string[], minRiskReward = 1.5, timeframes: string[] = ['5m', '15m', '1h']): Promise<MtfScanResponse> {
   const startedAt = performance.now();
   const response = await requestJson<MtfScanResponse>('/v1/scan/mtf', { method: 'POST', body: JSON.stringify({ symbols, timeframes, min_risk_reward: minRiskReward }) });
@@ -227,7 +231,6 @@ export function getMarketNews(symbols: string[], limit = 3) {
   return requestJson<MarketNewsResponse>(`/v1/news?${params.toString()}`);
 }
 
-// Backward-compatible function used by Trade Setup News.
 export const getTradeNews = getMarketNews;
 
 export function runHistoricalBacktest(symbols: string[], startDate: string, endDate: string, minRiskReward = 1.5, entryBefore?: string | null) {
