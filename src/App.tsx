@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StoreProvider } from '@/store/StoreContext';
 import { Sidebar, type PageKey } from '@/components/Sidebar';
 import { Topbar, ChatPanel } from '@/components/Topbar';
+import { LiveValidationRecorder } from '@/components/LiveValidationRecorder';
 import { Dashboard } from '@/pages/Dashboard';
 import { Portfolio } from '@/pages/Portfolio';
 import { Options } from '@/pages/Options';
@@ -47,6 +48,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex">
+      <LiveValidationRecorder />
       <Sidebar page={page} onNavigate={setPage} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onNavigate={setPage} onOpenChat={() => setChatOpen(true)} />
