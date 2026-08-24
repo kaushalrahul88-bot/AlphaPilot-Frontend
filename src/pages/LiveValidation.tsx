@@ -81,7 +81,7 @@ export function LiveValidation() {
     <DayOfWeekPerformance records={records} />
     <ExpiryProximityPerformance records={records} />
 
-    <Card><CardBody><div className="flex gap-3 items-start"><Activity className="text-blue-500 shrink-0"/><div><p className="text-sm font-semibold">Automatic forward-test tracking</p><p className="text-xs text-slate-500 mt-1">AlphaPilot checks open records against the current option-chain premium about once per minute while the app is open. AUTO OBSERVED means the polled premium was seen beyond a saved target or stop. It is not tick-by-tick historical proof, so transient intraminute touches can still be missed. Export evidence before clearing browser-local records.</p></div></div></CardBody></Card>
+    <Card><CardBody><div className="flex gap-3 items-start"><Activity className="text-blue-500 shrink-0"/><div><p className="text-sm font-semibold">Automatic forward-test tracking</p><p className="text-xs text-slate-500 mt-1">AlphaPilot checks open records against the current option-chain premium about once per minute while the app is open. AUTO OBSERVED means the polled premium was seen beyond a saved target or stop. New option plans use a premium-percentage intraday risk model; each saved stop and target now shows its percentage distance from entry. It is not tick-by-tick historical proof, so transient intraminute touches can still be missed.</p></div></div></CardBody></Card>
 
     {records.length === 0 ? <Card><CardBody className="text-center py-12"><Target size={38} className="mx-auto text-slate-300 mb-3"/><p className="text-sm text-slate-500">No execution-ready live setups captured yet.</p></CardBody></Card> : <div className="space-y-3">{records.map(row => <RecordCard key={row.id} row={row} setStatus={setStatus} undoManualStatus={undoManualStatus} />)}</div>}
   </div>;
@@ -94,17 +94,21 @@ function RecordCard({ row, setStatus, undoManualStatus }: { row: ValidationRecor
   const fallbackSubtitle = `${row.expiry ?? ''} ${row.strike ?? ''} ${row.option_type ?? ''}`.trim();
   const subtitle = row.option_contract ?? (fallbackSubtitle || 'Confirmed option setup');
   const canUndoManual = row.status !== 'OPEN' && row.resolution_source === 'MANUAL';
+  const stopPct = levelPercent(row.option_entry, row.option_stop, false, row.premium_risk_percent);
+  const t1Pct = levelPercent(row.option_entry, row.option_target1, true, row.option_target1_percent);
+  const t2Pct = levelPercent(row.option_entry, row.option_target2, true, row.option_target2_percent);
   return <Card><CardHeader title={`${row.symbol} · ${row.action}`} subtitle={subtitle} action={<Badge variant={variant}>{label}</Badge>}/><CardBody className="space-y-4">
     <div className="grid grid-cols-2 md:grid-cols-8 gap-3 text-sm">
       <Metric label="Alpha" value={`${row.alpha.toFixed(1)}/100`} />
       <Metric label="Entry" value={money(row.option_entry)} />
-      <Metric label="Stop" value={money(row.option_stop)} />
-      <Metric label="Target 1" value={money(row.option_target1)} />
-      <Metric label="Target 2" value={money(row.option_target2)} />
+      <Metric label="Stop" value={`${money(row.option_stop)}${stopPct != null ? ` (-${stopPct.toFixed(1)}%)` : ''}`} />
+      <Metric label="Target 1" value={`${money(row.option_target1)}${t1Pct != null ? ` (+${t1Pct.toFixed(1)}%)` : ''}`} />
+      <Metric label="Target 2" value={`${money(row.option_target2)}${t2Pct != null ? ` (+${t2Pct.toFixed(1)}%)` : ''}`} />
       <Metric label="Last Option LTP" value={money(row.last_option_ltp)} />
       <Metric label="Option R:R" value={row.option_rr ? `${row.option_rr.toFixed(2)}:1` : '—'} />
       <Metric label="1-Lot Capital" value={money(row.capital)} />
     </div>
+    {row.risk_model === 'PREMIUM_PERCENT_INTRADAY' && <p className="text-xs text-slate-500">Premium risk model: SL uses {stopPct?.toFixed(1) ?? '—'}% premium risk; T1/T2 are expressed as percentage moves from the captured option entry.</p>}
     <div className="flex flex-wrap justify-between gap-3 items-center">
       <div className="text-xs text-slate-500 space-y-1">
         <p><Clock3 size={13} className="inline mr-1"/>Captured {new Date(row.captured_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}{row.provider ? ` · ${row.provider}` : ''}</p>
@@ -115,6 +119,12 @@ function RecordCard({ row, setStatus, undoManualStatus }: { row: ValidationRecor
   </CardBody></Card>;
 }
 
+function levelPercent(entry?: number, level?: number, upside = true, explicit?: number) {
+  if (Number.isFinite(explicit)) return Math.abs(Number(explicit));
+  if (!Number.isFinite(entry) || !Number.isFinite(level) || Number(entry) <= 0) return null;
+  const move = upside ? Number(level) - Number(entry) : Number(entry) - Number(level);
+  return move >= 0 ? move / Number(entry) * 100 : null;
+}
 function Summary({ label, value }: { label: string; value: string }) { return <Card><CardBody><p className="text-xs text-slate-500">{label}</p><p className="text-2xl font-bold mt-1">{value}</p></CardBody></Card>; }
 function Metric({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-slate-500">{label}</p><p className="font-semibold mt-1">{value}</p></div>; }
 function money(value?: number) { return Number.isFinite(value) ? `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'; }
