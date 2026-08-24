@@ -1,42 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Badge, Card, CardBody, CardHeader } from '@/components/ui';
 import { FNO_SCAN_EVENT, MTF_SCAN_EVENT, type FnoScanResponse } from '@/lib/alphaPilotApi';
+import { actionOf, alphaStrength, executionQualification, optionRiskReward, rankScore } from '@/lib/executionGate';
 
 type ResultMap = Record<string, FnoScanResponse>;
-
-function directionStrength(result: FnoScanResponse) {
-  const alpha = Number(result.overall_alpha_score ?? 50);
-  const direction = String(result.technical?.direction ?? result.recommended_option?.direction ?? '').toUpperCase();
-  return direction === 'SHORT' ? 100 - alpha : alpha;
-}
-
-function optionRR(result: FnoScanResponse) {
-  const direct = Number(result.recommended_option?.option_risk_reward);
-  if (Number.isFinite(direct) && direct > 0) return direct;
-  const option = result.recommended_option ?? {};
-  const entry = Number(option.option_entry ?? option.premium);
-  const stop = Number(option.option_stop_loss);
-  const target = Number(option.option_target1);
-  const risk = entry - stop;
-  const reward = target - entry;
-  return [entry, stop, target, risk, reward].every(Number.isFinite) && risk > 0 && reward > 0 ? reward / risk : 0;
-}
-
-function liquidityScore(result: FnoScanResponse) {
-  const option = result.recommended_option ?? {};
-  const oi = Math.max(0, Number(option.open_interest ?? 0));
-  const volume = Math.max(0, Number(option.volume ?? 0));
-  return Math.log10(1 + oi) + Math.log10(1 + volume);
-}
-
-function rankScore(result: FnoScanResponse) {
-  return directionStrength(result) * 0.72 + Math.min(optionRR(result), 4) * 5 + liquidityScore(result) * 2;
-}
-
-function action(result: FnoScanResponse) {
-  const direction = String(result.technical?.direction ?? result.recommended_option?.direction ?? '').toUpperCase();
-  return direction === 'SHORT' ? 'BUY PE' : 'BUY CE';
-}
 
 export function RankingAudit() {
   const [results, setResults] = useState<ResultMap>({});
@@ -57,7 +24,7 @@ export function RankingAudit() {
   }, []);
 
   const ranked = useMemo(() => Object.values(results)
-    .filter(result => result.execution_ready === true && result.execution_quality?.ready === true)
+    .filter(result => executionQualification(result).pass)
     .sort((a, b) => rankScore(b) - rankScore(a))
     .slice(0, 3), [results]);
 
@@ -67,12 +34,12 @@ export function RankingAudit() {
     <Card>
       <CardHeader
         title="BEST TRADE · Ranking Audit"
-        subtitle="Explainable comparison of fully execution-ready F&O confirmations from the current universe scan only."
+        subtitle="Explainable comparison of candidates that pass the shared AlphaPilot execution gate."
         action={<Badge variant={ranked.length ? 'green' : 'blue'}>{ranked.length ? `${ranked.length} QUALIFIED` : 'NO QUALIFIED TRADE'}</Badge>}
       />
       <CardBody className="space-y-3">
         {ranked.length === 0 ? (
-          <p className="text-sm text-slate-500">No confirmed candidate has passed the complete backend execution-quality gate in this scan. Watchlist and blocked scans are intentionally excluded from BEST TRADE ranking.</p>
+          <p className="text-sm text-slate-500">No confirmed candidate passed the shared Final Alpha, underlying R:R and backend execution-quality gates in this scan.</p>
         ) : (
           <>
             {ranked.map((result, index) => {
@@ -84,14 +51,14 @@ export function RankingAudit() {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold">{index + 1}</div>
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap"><b>{result.symbol}</b><Badge variant="green">{action(result)}</Badge>{index === 0 && <Badge variant="blue">BEST</Badge>}</div>
+                        <div className="flex items-center gap-2 flex-wrap"><b>{result.symbol}</b><Badge variant="green">{actionOf(result)}</Badge>{index === 0 && <Badge variant="blue">BEST</Badge>}</div>
                         <p className="text-xs text-slate-500 mt-1">{option.contract_label ?? 'Execution-qualified option contract'}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-right">
                       <AuditMetric label="Rank score" value={rankScore(result).toFixed(1)} />
-                      <AuditMetric label="Alpha strength" value={`${directionStrength(result).toFixed(1)}/100`} />
-                      <AuditMetric label="Option R:R" value={`${optionRR(result).toFixed(2)}:1`} />
+                      <AuditMetric label="Alpha strength" value={`${alphaStrength(result).toFixed(1)}/100`} />
+                      <AuditMetric label="Option R:R" value={`${optionRiskReward(result).toFixed(2)}:1`} />
                       <AuditMetric label="OI / Volume" value={`${Number(option.open_interest ?? 0).toLocaleString('en-IN')} / ${Number(option.volume ?? 0).toLocaleString('en-IN')}`} />
                       <AuditMetric label="1-Lot Capital" value={Number.isFinite(capital) && capital > 0 ? `₹${capital.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'} />
                     </div>
@@ -101,7 +68,7 @@ export function RankingAudit() {
             })}
             {ranked.length > 1 && (
               <div className="rounded-lg bg-slate-50 dark:bg-slate-900/60 px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
-                <b>Why #1 ranks first:</b> {ranked[0].symbol} has the strongest composite among execution-ready candidates. Ranking weights directional Alpha most heavily, then uses option R:R and live OI/volume as tie-breakers. Capital required is displayed for affordability context but does not reward a trade merely for being cheaper.
+                <b>Why #1 ranks first:</b> {ranked[0].symbol} has the strongest composite among candidates that passed the exact same shared execution gate. Ranking then weights directional Alpha most heavily, with option R:R and live OI/volume as tie-breakers.
               </div>
             )}
           </>
