@@ -1,0 +1,51 @@
+import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
+import type { BacktestResponse } from '@/lib/alphaPilotApi';
+
+type Trade = BacktestResponse['trades'][number];
+type Direction = 'BUY CE' | 'BUY PE';
+type SortMode = 'BEST_R' | 'WORST_R' | 'MOST_TRADES' | 'HIGHEST_WIN';
+type PeriodResult = { label:string; startDate:string; endDate:string; allDay:BacktestResponse; before1030:BacktestResponse; before1200:BacktestResponse };
+type Row = { label:string; trades:number; wins:number; losses:number; winRate:number; totalR:number; avgR:number };
+type SymbolRow = Row & { drawdown:number; profitablePeriods:number; periodCount:number; consistency:'CONSISTENT'|'MIXED'|'WEAK' };
+const TIME_BUCKETS = ['09:15–10:30','10:30–12:00','12:00–13:30','13:30+'] as const;
+const EXIT_TYPES = ['T2','T1','SL','EOD'] as const;
+
+function summarize(label:string,trades:Trade[]):Row { const wins=trades.filter(t=>t.r_multiple>0).length; const losses=trades.filter(t=>t.r_multiple<0).length; const totalR=trades.reduce((s,t)=>s+t.r_multiple,0); return {label,trades:trades.length,wins,losses,winRate:trades.length?wins/trades.length*100:0,totalR,avgR:trades.length?totalR/trades.length:0}; }
+function maxDD(trades:Trade[]){let eq=0,peak=0,dd=0; for(const t of [...trades].sort((a,b)=>a.timestamp.localeCompare(b.timestamp))){eq+=t.r_multiple;peak=Math.max(peak,eq);dd=Math.max(dd,peak-eq);} return dd;}
+function bucket(ts:string){const d=new Date(ts);const m=d.getHours()*60+d.getMinutes();if(m<630)return TIME_BUCKETS[0];if(m<720)return TIME_BUCKETS[1];if(m<810)return TIME_BUCKETS[2];return TIME_BUCKETS[3];}
+function fmtR(v:number){return `${v>0?'+':''}${v.toFixed(2)}R`;}
+function tone(v:number){return v>0?'text-emerald-600':v<0?'text-red-600':'';}
+
+export function DirectionDiagnostics({results}:{results:PeriodResult[]}){
+  const [direction,setDirection]=useState<Direction>('BUY CE');
+  const [sortMode,setSortMode]=useState<SortMode>('BEST_R');
+  const data=useMemo(()=>{
+    const trades=results.flatMap(p=>p.allDay.trades.filter(t=>t.action===direction)).sort((a,b)=>a.timestamp.localeCompare(b.timestamp));
+    const summary={...summarize(direction,trades),drawdown:maxDD(trades)};
+    const symbols=[...new Set(trades.map(t=>t.symbol))];
+    const symbolRows:SymbolRow[]=symbols.map(symbol=>{const st=trades.filter(t=>t.symbol===symbol);const row=summarize(symbol,st);const profitablePeriods=results.filter(p=>{const pt=p.allDay.trades.filter(t=>t.action===direction&&t.symbol===symbol);return pt.length>0&&pt.reduce((s,t)=>s+t.r_multiple,0)>0;}).length;const periodCount=results.length;const consistency:SymbolRow['consistency']=row.trades>=10&&profitablePeriods===periodCount?'CONSISTENT':profitablePeriods>=Math.ceil(periodCount*2/3)?'MIXED':'WEAK';return {...row,drawdown:maxDD(st),profitablePeriods,periodCount,consistency};});
+    symbolRows.sort((a,b)=>sortMode==='WORST_R'?a.totalR-b.totalR:sortMode==='MOST_TRADES'?b.trades-a.trades||b.totalR-a.totalR:sortMode==='HIGHEST_WIN'?b.winRate-a.winRate||b.trades-a.trades:b.totalR-a.totalR);
+    const timeRows=TIME_BUCKETS.map(label=>{const x=trades.filter(t=>bucket(t.timestamp)===label);return {...summarize(label,x),drawdown:maxDD(x)}});
+    const exitRows=EXIT_TYPES.map(label=>summarize(label,trades.filter(t=>t.outcome===label)));
+    const matrix=symbols.sort().map(symbol=>({symbol,cells:TIME_BUCKETS.map(label=>summarize(label,trades.filter(t=>t.symbol===symbol&&bucket(t.timestamp)===label)))}));
+    const weakest=[...symbolRows].sort((a,b)=>a.totalR-b.totalR)[0]; const strongestTime=[...timeRows].sort((a,b)=>b.totalR-a.totalR)[0]; const weakestTime=[...timeRows].sort((a,b)=>a.totalR-b.totalR)[0]; const weakest3=[...symbolRows].sort((a,b)=>a.totalR-b.totalR).slice(0,3); const withoutWeakest=summary.totalR-weakest3.reduce((s,r)=>s+r.totalR,0);
+    const insights=[`${direction} ${summary.totalR>=0?'made':'lost'} ${Math.abs(summary.totalR).toFixed(2)}R across ${summary.trades} trades (${summary.winRate.toFixed(1)}% win rate).`,weakest?`${weakest.label} was the weakest ${direction} symbol at ${fmtR(weakest.totalR)} across ${weakest.trades} trades${weakest.trades<10?' (LOW SAMPLE)':''}.`:'',strongestTime?`${strongestTime.label} was the strongest entry-time bucket at ${fmtR(strongestTime.totalR)} across ${strongestTime.trades} trades.`:'',weakestTime&&weakestTime.totalR<0?`Losses were most concentrated in ${weakestTime.label}, which contributed ${fmtR(weakestTime.totalR)}.`:'',weakest3.length?`Removing the three weakest symbols in-sample would change Total R from ${fmtR(summary.totalR)} to ${fmtR(withoutWeakest)}. This is diagnostic only, not a proposed live filter.`:''].filter(Boolean);
+    return {summary,symbolRows,timeRows,exitRows,matrix,insights};
+  },[results,direction,sortMode]);
+  return <Card><CardHeader title="Direction Diagnostics" subtitle="Identify which symbols, entry times and exit types are driving BUY CE and BUY PE performance."/><CardBody className="space-y-5">
+    <div className="flex flex-col md:flex-row md:items-end justify-between gap-3"><div><p className="text-xs font-medium mb-1.5">Direction</p><div className="flex gap-2"><Button variant={direction==='BUY CE'?'primary':'ghost'} onClick={()=>setDirection('BUY CE')}>BUY CE</Button><Button variant={direction==='BUY PE'?'primary':'ghost'} onClick={()=>setDirection('BUY PE')}>BUY PE</Button></div></div><label className="text-xs font-medium">Symbol sort<select className="block mt-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-transparent px-3 py-2" value={sortMode} onChange={e=>setSortMode(e.target.value as SortMode)}><option value="BEST_R">Best Total R</option><option value="WORST_R">Worst Total R</option><option value="MOST_TRADES">Most Trades</option><option value="HIGHEST_WIN">Highest Win %</option></select></label></div>
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3"><Metric label="Total Trades" value={String(data.summary.trades)}/><Metric label="Win Rate" value={`${data.summary.winRate.toFixed(1)}%`}/><Metric label="Total R" value={fmtR(data.summary.totalR)}/><Metric label="Avg R" value={fmtR(data.summary.avgR)}/><Metric label="Max Drawdown" value={`${data.summary.drawdown.toFixed(2)}R`}/></div>
+    <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200"><b>Diagnostics are descriptive, not execution rules.</b> Do not promote a symbol/time/direction filter to the live scanner until it remains profitable across independent periods and a sufficiently large trade sample.</div>
+    <SectionTable title="By Symbol" headers={['Symbol','Trades','W/L','Win %','Total R','Avg R','Max DD','Profitable Periods','Status']} rows={data.symbolRows.map(r=>[r.label,<>{r.trades}{r.trades<10&&<small className="block text-amber-600">LOW SAMPLE</small>}</>,`${r.wins}/${r.losses}`,`${r.winRate.toFixed(1)}%`,<span className={tone(r.totalR)}>{fmtR(r.totalR)}</span>,fmtR(r.avgR),`${r.drawdown.toFixed(2)}R`,`${r.profitablePeriods}/${r.periodCount}`,<Badge variant={r.consistency==='CONSISTENT'?'green':r.consistency==='MIXED'?'blue':'red'}>{r.consistency}</Badge>])}/>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5"><SectionTable title="By Entry Time" headers={['Entry Time','Trades','W/L','Win %','Total R','Avg R','Max DD']} rows={data.timeRows.map(r=>[r.label,r.trades,`${r.wins}/${r.losses}`,`${r.winRate.toFixed(1)}%`,<span className={tone(r.totalR)}>{fmtR(r.totalR)}</span>,fmtR(r.avgR),`${r.drawdown.toFixed(2)}R`])}/><SectionTable title="By Exit Type" headers={['Exit Type','Trades','Win %','Total R','Avg R']} rows={data.exitRows.map(r=>[r.label,r.trades,`${r.winRate.toFixed(1)}%`,<span className={tone(r.totalR)}>{fmtR(r.totalR)}</span>,fmtR(r.avgR)])}/></div>
+    <div><h3 className="text-sm font-semibold mb-2">Symbol × Entry Time</h3><div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 max-h-[34rem]"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 sticky top-0"><tr><th className="text-left p-2">Symbol</th>{TIME_BUCKETS.map(x=><th key={x} className="text-right p-2 whitespace-nowrap">{x}</th>)}</tr></thead><tbody>{data.matrix.map(r=><tr key={r.symbol} className="border-t border-slate-200 dark:border-slate-800"><td className="p-2 font-semibold">{r.symbol}</td>{r.cells.map(c=><td key={c.label} className={`p-2 text-right ${tone(c.totalR)}`}><div className="font-semibold">{fmtR(c.totalR)}</div><div className="text-[10px] text-slate-500">({c.trades} trades){c.trades>0&&c.trades<10?' · LOW SAMPLE':''}</div></td>)}</tr>)}</tbody></table></div></div>
+    <div><h3 className="text-sm font-semibold mb-2">Diagnostic Insights</h3><div className="space-y-2">{data.insights.map((x,i)=><div key={i} className="rounded-lg bg-slate-50 dark:bg-slate-900/60 px-3 py-2 text-xs">{x}</div>)}</div></div>
+    <div className="flex items-start gap-2 text-xs text-slate-500"><AlertTriangle size={15} className="mt-0.5 shrink-0"/><span>Low-sample subgroups are labeled and should not be treated as confirmed edges.</span></div>
+  </CardBody></Card>;
+}
+
+function Metric({label,value}:{label:string;value:string}){return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-[11px] text-slate-500">{label}</p><p className="font-bold mt-1">{value}</p></div>}
+function SectionTable({title,headers,rows}:{title:string;headers:string[];rows:ReactNode[][]}){return <div><h3 className="text-sm font-semibold mb-2">{title}</h3><div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr>{headers.map((h,i)=><th key={h} className={`${i===0?'text-left':'text-right'} p-2 whitespace-nowrap`}>{h}</th>)}</tr></thead><tbody>{rows.map((row,ri)=><tr key={ri} className="border-t border-slate-200 dark:border-slate-800">{row.map((c,ci)=><td key={ci} className={`${ci===0?'text-left font-semibold':'text-right'} p-2 whitespace-nowrap`}>{c}</td>)}</tr>)}</tbody></table></div></div>}
