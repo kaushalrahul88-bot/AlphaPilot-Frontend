@@ -7,6 +7,7 @@ import { DataQualityRecorder } from '@/components/DataQualityRecorder';
 import { FnoHistoryProbe } from '@/components/FnoHistoryProbe';
 import { FnoPremiumBacktest } from '@/components/FnoPremiumBacktest';
 import { StrategyResearchPanel } from '@/components/StrategyResearchPanel';
+import { StrategyPremiumReplay } from '@/components/StrategyPremiumReplay';
 import { Dashboard } from '@/pages/Dashboard';
 import { Portfolio } from '@/pages/Portfolio';
 import { Options } from '@/pages/Options';
@@ -47,7 +48,7 @@ function AppContent() {
       case 'live-validation': return <LiveValidation />;
       case 'system-health': return <SystemHealth />;
       case 'data-quality': return <DataQuality />;
-      case 'backtest': return <div className="space-y-5"><StrategyResearchPanel /><FnoHistoryProbe /><FnoPremiumBacktest /><Backtest /></div>;
+      case 'backtest': return <div className="space-y-5"><StrategyResearchPanel /><StrategyPremiumReplay /><FnoHistoryProbe /><FnoPremiumBacktest /><Backtest /></div>;
       case 'direction-diagnostics': return <DirectionDiagnosticsPage />;
       case 'trade-setup': return <TradeSetup />;
       case 'position-sizing': return <PositionSizing />;
