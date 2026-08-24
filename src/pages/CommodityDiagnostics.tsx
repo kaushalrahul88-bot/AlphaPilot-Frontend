@@ -8,6 +8,7 @@ import { CommodityCarryRisk } from '@/pages/CommodityCarryRisk';
 import { CommodityManagementSimulation } from '@/pages/CommodityManagementSimulation';
 import { CommodityForwardCoverage } from '@/pages/CommodityForwardCoverage';
 import { CommodityForwardRiskAudit } from '@/pages/CommodityForwardRiskAudit';
+import { CommodityPromotionGate } from '@/pages/CommodityPromotionGate';
 import { CommodityValidationLog } from '@/pages/CommodityValidationLog';
 import { CommodityDataRecorder } from '@/pages/CommodityDataRecorder';
 
@@ -45,6 +46,7 @@ export function CommodityDiagnostics() {
     <CommodityManagementSimulation />
     <CommodityForwardCoverage />
     <CommodityForwardRiskAudit />
+    <CommodityPromotionGate />
     <CommodityValidationLog />
   </div>;
 }
