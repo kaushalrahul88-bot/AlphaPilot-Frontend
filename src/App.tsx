@@ -5,6 +5,7 @@ import { Topbar, ChatPanel } from '@/components/Topbar';
 import { LiveValidationRecorder } from '@/components/LiveValidationRecorder';
 import { DataQualityRecorder } from '@/components/DataQualityRecorder';
 import { FnoHistoryProbe } from '@/components/FnoHistoryProbe';
+import { FnoPremiumBacktest } from '@/components/FnoPremiumBacktest';
 import { Dashboard } from '@/pages/Dashboard';
 import { Portfolio } from '@/pages/Portfolio';
 import { Options } from '@/pages/Options';
@@ -45,7 +46,7 @@ function AppContent() {
       case 'live-validation': return <LiveValidation />;
       case 'system-health': return <SystemHealth />;
       case 'data-quality': return <DataQuality />;
-      case 'backtest': return <div className="space-y-5"><FnoHistoryProbe /><Backtest /></div>;
+      case 'backtest': return <div className="space-y-5"><FnoHistoryProbe /><FnoPremiumBacktest /><Backtest /></div>;
       case 'direction-diagnostics': return <DirectionDiagnosticsPage />;
       case 'trade-setup': return <TradeSetup />;
       case 'position-sizing': return <PositionSizing />;
