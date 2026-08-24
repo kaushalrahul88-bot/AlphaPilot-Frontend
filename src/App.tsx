@@ -13,6 +13,7 @@ import { OptionNativePhase2 } from '@/components/OptionNativePhase2';
 import { MarketRegimeResearch } from '@/components/MarketRegimeResearch';
 import { EdgeDiscoveryLab } from '@/components/EdgeDiscoveryLab';
 import { EdgeInteractionDiscovery } from '@/components/EdgeInteractionDiscovery';
+import { EdgeTransitionDiscovery } from '@/components/EdgeTransitionDiscovery';
 import { CandidateValidator } from '@/components/CandidateValidator';
 import { Dashboard } from '@/pages/Dashboard';
 import { Portfolio } from '@/pages/Portfolio';
@@ -54,7 +55,7 @@ function AppContent() {
       case 'live-validation': return <LiveValidation />;
       case 'system-health': return <SystemHealth />;
       case 'data-quality': return <DataQuality />;
-      case 'backtest': return <div className="space-y-5"><CandidateValidator /><EdgeInteractionDiscovery /><EdgeDiscoveryLab /><MarketRegimeResearch /><OptionNativePhase2 /><OptionNativeResearchV3 /><StrategyResearchPanel /><StrategyPremiumReplay /><FnoHistoryProbe /><FnoPremiumBacktest /><Backtest /></div>;
+      case 'backtest': return <div className="space-y-5"><CandidateValidator /><EdgeTransitionDiscovery /><EdgeInteractionDiscovery /><EdgeDiscoveryLab /><MarketRegimeResearch /><OptionNativePhase2 /><OptionNativeResearchV3 /><StrategyResearchPanel /><StrategyPremiumReplay /><FnoHistoryProbe /><FnoPremiumBacktest /><Backtest /></div>;
       case 'direction-diagnostics': return <DirectionDiagnosticsPage />;
       case 'trade-setup': return <TradeSetup />;
       case 'position-sizing': return <PositionSizing />;
