@@ -4,7 +4,7 @@ export type PremiumBacktestRequest = {
   symbols: string[];
   start_date: string;
   end_date: string;
-  expiry: string;
+  expiry?: string | null;
   min_risk_reward?: number;
   entry_before?: string | null;
   max_trades?: number;
@@ -17,6 +17,7 @@ export type PremiumBacktestTrade = {
   direction?: string;
   mtf_alpha?: number;
   expiry?: string;
+  expiry_selection?: string;
   strike?: number;
   option_type?: 'CE'|'PE';
   option_contract?: string;
@@ -36,7 +37,9 @@ export type PremiumBacktestResponse = {
   mode?: string;
   start_date?: string;
   end_date?: string;
-  expiry?: string;
+  expiry?: string | null;
+  expiry_mode?: 'FIXED'|'AUTO_NEAREST_LISTED'|string;
+  expiries_used?: string[];
   summary?: {
     trades?: number;
     wins?: number;
@@ -49,7 +52,7 @@ export type PremiumBacktestResponse = {
     [key:string]: unknown;
   };
   trades?: PremiumBacktestTrade[];
-  errors?: Array<{symbol?:string;error?:string;[key:string]:unknown}>;
+  errors?: Array<{symbol?:string;error?:string;stage?:string;[key:string]:unknown}>;
   limitations?: string[];
   [key:string]: unknown;
 };
@@ -60,6 +63,7 @@ export async function runTruePremiumBacktest(input: PremiumBacktestRequest): Pro
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...input,
+      expiry: input.expiry || null,
       symbols: input.symbols.map(x => x.trim().toUpperCase()).filter(Boolean),
       min_risk_reward: input.min_risk_reward ?? 1.5,
       entry_before: input.entry_before ?? null,
