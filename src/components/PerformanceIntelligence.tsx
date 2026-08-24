@@ -93,6 +93,14 @@ export function PerformanceIntelligence({ records }: { records: ValidationRecord
       return realised != null && realised > 0 && Number.isFinite(mfe) && mfe > 0 ? Math.min(1, realised / mfe) : null;
     }).filter((value): value is number => value !== null);
 
+    const stoppedWithMfe = stopped.filter(row => Number.isFinite(Number(row.mfe_r)));
+    const directStops = stoppedWithMfe.filter(row => Number(row.mfe_r) < 0.25).length;
+    const quarterToHalfStops = stoppedWithMfe.filter(row => Number(row.mfe_r) >= 0.25 && Number(row.mfe_r) < 0.5).length;
+    const halfToOneStops = stoppedWithMfe.filter(row => Number(row.mfe_r) >= 0.5 && Number(row.mfe_r) < 1).length;
+    const onePlusStops = stoppedWithMfe.filter(row => Number(row.mfe_r) >= 1).length;
+    const reachedHalfBeforeStop = stoppedWithMfe.filter(row => Number(row.mfe_r) >= 0.5).length;
+    const reachedOneBeforeStop = stoppedWithMfe.filter(row => Number(row.mfe_r) >= 1).length;
+
     const durationRows = closed.map(row => resolutionMinutes(row)).filter((value): value is number => value !== null);
     const winnerDurations = winners.map(row => resolutionMinutes(row)).filter((value): value is number => value !== null);
     const stopDurations = stopped.map(row => resolutionMinutes(row)).filter((value): value is number => value !== null);
@@ -135,6 +143,13 @@ export function PerformanceIntelligence({ records }: { records: ValidationRecord
       avgLoserMfe,
       captureEfficiency: efficiencyValues.length ? efficiencyValues.reduce((sum, value) => sum + value, 0) / efficiencyValues.length * 100 : 0,
       excursionSamples: excursionRows.length,
+      stoppedMfeSamples: stoppedWithMfe.length,
+      directStops,
+      quarterToHalfStops,
+      halfToOneStops,
+      onePlusStops,
+      reachedHalfBeforeStop,
+      reachedOneBeforeStop,
       durationSamples: durationRows.length,
       avgResolutionMinutes: averageFinite(durationRows),
       avgWinnerMinutes: averageFinite(winnerDurations),
@@ -212,6 +227,27 @@ export function PerformanceIntelligence({ records }: { records: ValidationRecord
           <Metric label="Capture Efficiency" value={`${analytics.captureEfficiency.toFixed(0)}%`} />
         </div>
         <p className="text-xs text-slate-500">Stopped trades averaged <b>{analytics.avgLoserMfe.toFixed(2)}R</b> of observed favourable excursion before failing. This becomes useful for diagnosing whether profitable movement is being given back or whether stops/targets merit later testing—only after the evidence gate is met.</p>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">Management Efficiency Study</p>
+            <p className="text-xs text-slate-500 mt-0.5">How much observed favourable movement stopped F&O trades achieved before eventually hitting the saved premium stop.</p>
+          </div>
+          <Badge variant={analytics.stoppedMfeSamples >= 20 ? 'green' : analytics.stoppedMfeSamples >= 5 ? 'amber' : 'default'}>{analytics.stoppedMfeSamples >= 20 ? 'USABLE SAMPLE' : analytics.stoppedMfeSamples >= 5 ? 'EARLY SIGNAL' : 'INSUFFICIENT SAMPLE'}</Badge>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Metric label="Direct SL <0.25R" value={String(analytics.directStops)} />
+          <Metric label="0.25–0.49R then SL" value={String(analytics.quarterToHalfStops)} />
+          <Metric label="0.50–0.99R then SL" value={String(analytics.halfToOneStops)} />
+          <Metric label="≥1.00R then SL" value={String(analytics.onePlusStops)} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Metric label="Losers first reaching +0.50R" value={analytics.stoppedMfeSamples ? `${analytics.reachedHalfBeforeStop}/${analytics.stoppedMfeSamples} · ${(analytics.reachedHalfBeforeStop / analytics.stoppedMfeSamples * 100).toFixed(1)}%` : '0/0 · 0.0%'} />
+          <Metric label="Losers first reaching +1.00R" value={analytics.stoppedMfeSamples ? `${analytics.reachedOneBeforeStop}/${analytics.stoppedMfeSamples} · ${(analytics.reachedOneBeforeStop / analytics.stoppedMfeSamples * 100).toFixed(1)}%` : '0/0 · 0.0%'} />
+        </div>
+        <p className="text-xs text-slate-500">This is diagnostics only. A high +0.50R-then-SL rate can justify later testing of break-even or partial-profit management, but AlphaPilot does not change the live stop, trail it, or take partial exits from this evidence.</p>
       </div>
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
