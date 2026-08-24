@@ -24,6 +24,11 @@ export type ValidationRecord = {
   option_target1_percent?: number;
   option_target2_percent?: number;
   risk_model?: string;
+  plan_migrated_at?: string;
+  legacy_option_stop?: number;
+  legacy_option_target1?: number;
+  legacy_option_target2?: number;
+  legacy_option_rr?: number;
   lot_size?: number;
   capital?: number;
   status: ValidationStatus;
@@ -38,11 +43,58 @@ export type ValidationRecord = {
   resolution_source?: 'AUTO_OBSERVED' | 'MANUAL';
 };
 
+function premiumRiskPercent(entry: number) {
+  if (entry < 10) return 30;
+  if (entry < 30) return 25;
+  return 20;
+}
+
+function migrateOpenLegacyPlan(record: ValidationRecord): ValidationRecord {
+  if (record.status !== 'OPEN' || record.risk_model === 'PREMIUM_PERCENT_INTRADAY') return record;
+  const entry = Number(record.option_entry);
+  if (!Number.isFinite(entry) || entry <= 0) return record;
+
+  const riskPercent = premiumRiskPercent(entry);
+  const risk = entry * riskPercent / 100;
+  const rr = 1.5;
+  const stop = Math.max(0.05, entry - risk);
+  const target1 = entry + risk * rr;
+  const target2 = entry + risk * 2;
+
+  return {
+    ...record,
+    legacy_option_stop: record.option_stop,
+    legacy_option_target1: record.option_target1,
+    legacy_option_target2: record.option_target2,
+    legacy_option_rr: record.option_rr,
+    option_stop: Number(stop.toFixed(2)),
+    option_target1: Number(target1.toFixed(2)),
+    option_target2: Number(target2.toFixed(2)),
+    option_rr: rr,
+    premium_risk_percent: riskPercent,
+    option_target1_percent: Number((riskPercent * rr).toFixed(2)),
+    option_target2_percent: Number((riskPercent * 2).toFixed(2)),
+    risk_model: 'PREMIUM_PERCENT_INTRADAY',
+    plan_migrated_at: new Date().toISOString(),
+    observed_max_ltp: Number.isFinite(Number(record.observed_max_ltp)) ? record.observed_max_ltp : entry,
+    observed_min_ltp: Number.isFinite(Number(record.observed_min_ltp)) ? record.observed_min_ltp : entry,
+    mfe_r: 0,
+    mae_r: 0,
+  };
+}
+
 export function readValidationRecords(): ValidationRecord[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(LIVE_VALIDATION_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const records = parsed.map((row: ValidationRecord) => migrateOpenLegacyPlan(row));
+    const changed = records.some((row: ValidationRecord, index: number) => row !== parsed[index]);
+    if (changed) {
+      window.localStorage.setItem(LIVE_VALIDATION_STORAGE_KEY, JSON.stringify(records.slice(0, 250)));
+    }
+    return records;
   } catch { return []; }
 }
 
