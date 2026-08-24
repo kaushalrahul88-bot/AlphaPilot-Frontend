@@ -4,6 +4,7 @@ import { Sidebar, type PageKey } from '@/components/Sidebar';
 import { Topbar, ChatPanel } from '@/components/Topbar';
 import { LiveValidationRecorder } from '@/components/LiveValidationRecorder';
 import { DataQualityRecorder } from '@/components/DataQualityRecorder';
+import { FnoHistoryProbe } from '@/components/FnoHistoryProbe';
 import { Dashboard } from '@/pages/Dashboard';
 import { Portfolio } from '@/pages/Portfolio';
 import { Options } from '@/pages/Options';
@@ -44,7 +45,7 @@ function AppContent() {
       case 'live-validation': return <LiveValidation />;
       case 'system-health': return <SystemHealth />;
       case 'data-quality': return <DataQuality />;
-      case 'backtest': return <Backtest />;
+      case 'backtest': return <div className="space-y-5"><FnoHistoryProbe /><Backtest /></div>;
       case 'direction-diagnostics': return <DirectionDiagnosticsPage />;
       case 'trade-setup': return <TradeSetup />;
       case 'position-sizing': return <PositionSizing />;
