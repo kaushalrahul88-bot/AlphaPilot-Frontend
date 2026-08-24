@@ -33,7 +33,7 @@ export function FnoPremiumBacktest(){
   const s=result?.summary??{};
   const expiryText=result?.expiry_mode==='AUTO_NEAREST_LISTED'
     ? `Auto · ${(result.expiries_used??[]).join(', ')||'no expiry resolved'}`
-    : String(result?.expiry??expiry||'—');
+    : String(result?.expiry ?? (expiry || '—'));
   return <Card><CardHeader title="True F&O Premium Backtest" subtitle="Core strategy test: historical AlphaPilot signals replayed through actual Groww option-premium OHLC. No live rules are changed." action={<ShieldCheck size={18} className="text-emerald-500"/>}/><CardBody className="space-y-4">
     <div className="grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
       <Input label="Symbols" value={symbolsText} onChange={setSymbolsText}/>
