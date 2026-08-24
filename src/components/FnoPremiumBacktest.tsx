@@ -35,14 +35,14 @@ function diagnosticRows(result:PremiumBacktestResponse|null){
 }
 
 export function FnoPremiumBacktest(){
-  const [symbolsText,setSymbolsText]=useState('RELIANCE,SBIN,AXISBANK');
+  const [symbolsText,setSymbolsText]=useState('RELIANCE,SBIN,AXISBANK,HDFCBANK,ICICIBANK,TATASTEEL,HINDALCO,ONGC,INFY,TCS');
   const [start,setStart]=useState(offset(10));
   const [end,setEnd]=useState(offset(1));
   const [expiry,setExpiry]=useState('');
   const [autoExpiry,setAutoExpiry]=useState(true);
   const [rr,setRr]=useState('1.5');
   const [entryBefore,setEntryBefore]=useState('');
-  const [maxTrades,setMaxTrades]=useState('20');
+  const [maxTrades,setMaxTrades]=useState('50');
   const [running,setRunning]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [result,setResult]=useState<PremiumBacktestResponse|null>(null);
@@ -53,7 +53,7 @@ export function FnoPremiumBacktest(){
     if(!autoExpiry&&!expiry){setError('Choose an expiry or enable Auto Expiry.');return}
     if(end<start){setError('End date must be on or after start date.');return}
     setRunning(true);setError(null);setResult(null);
-    try{setResult(await runTruePremiumBacktest({symbols,start_date:start,end_date:end,expiry:autoExpiry?null:expiry,min_risk_reward:Number(rr)||1.5,entry_before:entryBefore||null,max_trades:Math.max(1,Math.min(Number(maxTrades)||20,50))}));}
+    try{setResult(await runTruePremiumBacktest({symbols,start_date:start,end_date:end,expiry:autoExpiry?null:expiry,min_risk_reward:Number(rr)||1.5,entry_before:entryBefore||null,max_trades:Math.max(1,Math.min(Number(maxTrades)||50,50))}));}
     catch(e){setError(e instanceof Error?e.message:'True premium backtest failed.')}finally{setRunning(false)}
   }
 
