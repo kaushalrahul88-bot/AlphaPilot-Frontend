@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Activity, CheckCircle2, Clock3, Download, RotateCcw, Target, Trash2, XCircle } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import { PerformanceIntelligence } from '@/components/PerformanceIntelligence';
+import { FnoManagementSimulation } from '@/components/FnoManagementSimulation';
 import { TimeOfDayPerformance } from '@/components/TimeOfDayPerformance';
 import { DayOfWeekPerformance } from '@/components/DayOfWeekPerformance';
 import { ExpiryProximityPerformance } from '@/components/ExpiryProximityPerformance';
@@ -77,6 +78,7 @@ export function LiveValidation() {
     </div>
 
     <PerformanceIntelligence records={records} />
+    <FnoManagementSimulation records={records} />
     <TimeOfDayPerformance records={records} />
     <DayOfWeekPerformance records={records} />
     <ExpiryProximityPerformance records={records} />
