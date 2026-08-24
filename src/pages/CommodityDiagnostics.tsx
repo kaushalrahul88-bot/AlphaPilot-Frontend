@@ -5,6 +5,7 @@ import { getCommodityProbe, scanCommodity, type CommodityProbeResponse, type Com
 import { CommodityNewsPanel } from '@/pages/CommodityNewsPanel';
 import { CommodityOutcomeTracker } from '@/pages/CommodityOutcomeTracker';
 import { CommodityCarryRisk } from '@/pages/CommodityCarryRisk';
+import { CommodityManagementSimulation } from '@/pages/CommodityManagementSimulation';
 import { CommodityValidationLog } from '@/pages/CommodityValidationLog';
 import { CommodityDataRecorder } from '@/pages/CommodityDataRecorder';
 
@@ -39,6 +40,7 @@ export function CommodityDiagnostics() {
     <CommodityDataRecorder />
     <CommodityOutcomeTracker />
     <CommodityCarryRisk />
+    <CommodityManagementSimulation />
     <CommodityValidationLog />
   </div>;
 }
