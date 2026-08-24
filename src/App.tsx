@@ -11,6 +11,7 @@ import { StrategyPremiumReplay } from '@/components/StrategyPremiumReplay';
 import { OptionNativeResearchV3 } from '@/components/OptionNativeResearchV3';
 import { OptionNativePhase2 } from '@/components/OptionNativePhase2';
 import { MarketRegimeResearch } from '@/components/MarketRegimeResearch';
+import { GlobalIntelligence } from '@/components/GlobalIntelligence';
 import { EdgeDiscoveryLab } from '@/components/EdgeDiscoveryLab';
 import { EdgeInteractionDiscovery } from '@/components/EdgeInteractionDiscovery';
 import { EdgeTransitionDiscovery } from '@/components/EdgeTransitionDiscovery';
@@ -38,51 +39,5 @@ import { News } from '@/pages/News';
 import { Markets } from '@/pages/Markets';
 import { Alerts } from '@/pages/Alerts';
 import { Settings } from '@/pages/Settings';
-
-function AppContent() {
-  const [page, setPage] = useState<PageKey>('dashboard');
-  const [chatOpen, setChatOpen] = useState(false);
-
-  const renderPage = () => {
-    switch (page) {
-      case 'dashboard': return <Dashboard onNavigate={setPage} />;
-      case 'markets': return <Markets />;
-      case 'portfolio': return <Portfolio />;
-      case 'options': return <Options />;
-      case 'ai-analyst': return <AIAnalyst />;
-      case 'trade-scanner': return <div className="space-y-5"><FirstLiveSessionChecklist /><MondayLiveTest /><TradeScannerWithGift onNavigate={setPage} /></div>;
-      case 'commodity-diagnostics': return <CommodityDiagnostics />;
-      case 'commodity-backtest': return <CommodityBacktest />;
-      case 'live-validation': return <LiveValidation />;
-      case 'system-health': return <SystemHealth />;
-      case 'data-quality': return <DataQuality />;
-      case 'backtest': return <div className="space-y-5"><CandidateBValidator /><CandidateValidator /><EdgeTransitionDiscovery /><EdgeInteractionDiscovery /><EdgeDiscoveryLab /><MarketRegimeResearch /><OptionNativePhase2 /><OptionNativeResearchV3 /><StrategyResearchPanel /><StrategyPremiumReplay /><FnoHistoryProbe /><FnoPremiumBacktest /><Backtest /></div>;
-      case 'direction-diagnostics': return <DirectionDiagnosticsPage />;
-      case 'trade-setup': return <TradeSetup />;
-      case 'position-sizing': return <PositionSizing />;
-      case 'journal': return <Journal />;
-      case 'risk': return <RiskCenter />;
-      case 'news': return <News />;
-      case 'alerts': return <Alerts />;
-      case 'settings': return <Settings />;
-      default: return <Dashboard onNavigate={setPage} />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex">
-      <LiveValidationRecorder />
-      <DataQualityRecorder />
-      <Sidebar page={page} onNavigate={setPage} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Topbar onNavigate={setPage} onOpenChat={() => setChatOpen(true)} />
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{renderPage()}</main>
-      </div>
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
-    </div>
-  );
-}
-
-export default function App() {
-  return <StoreProvider><AppContent /></StoreProvider>;
-}
+function AppContent(){const[page,setPage]=useState<PageKey>('dashboard');const[chatOpen,setChatOpen]=useState(false);const renderPage=()=>{switch(page){case'dashboard':return <Dashboard onNavigate={setPage}/>;case'markets':return <Markets/>;case'portfolio':return <Portfolio/>;case'options':return <Options/>;case'ai-analyst':return <AIAnalyst/>;case'trade-scanner':return <div className="space-y-5"><FirstLiveSessionChecklist/><MondayLiveTest/><TradeScannerWithGift onNavigate={setPage}/></div>;case'commodity-diagnostics':return <CommodityDiagnostics/>;case'commodity-backtest':return <CommodityBacktest/>;case'live-validation':return <LiveValidation/>;case'system-health':return <SystemHealth/>;case'data-quality':return <DataQuality/>;case'backtest':return <div className="space-y-5"><GlobalIntelligence/><CandidateBValidator/><CandidateValidator/><EdgeTransitionDiscovery/><EdgeInteractionDiscovery/><EdgeDiscoveryLab/><MarketRegimeResearch/><OptionNativePhase2/><OptionNativeResearchV3/><StrategyResearchPanel/><StrategyPremiumReplay/><FnoHistoryProbe/><FnoPremiumBacktest/><Backtest/></div>;case'direction-diagnostics':return <DirectionDiagnosticsPage/>;case'trade-setup':return <TradeSetup/>;case'position-sizing':return <PositionSizing/>;case'journal':return <Journal/>;case'risk':return <RiskCenter/>;case'news':return <News/>;case'alerts':return <Alerts/>;case'settings':return <Settings/>;default:return <Dashboard onNavigate={setPage}/>}};return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex"><LiveValidationRecorder/><DataQualityRecorder/><Sidebar page={page} onNavigate={setPage}/><div className="flex-1 flex flex-col min-w-0"><Topbar onNavigate={setPage} onOpenChat={()=>setChatOpen(true)}/><main className="flex-1 p-4 md:p-6 overflow-x-hidden">{renderPage()}</main></div><ChatPanel open={chatOpen} onClose={()=>setChatOpen(false)}/></div>}
+export default function App(){return <StoreProvider><AppContent/></StoreProvider>}
