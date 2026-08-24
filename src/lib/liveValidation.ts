@@ -20,6 +20,10 @@ export type ValidationRecord = {
   option_target1?: number;
   option_target2?: number;
   option_rr?: number;
+  premium_risk_percent?: number;
+  option_target1_percent?: number;
+  option_target2_percent?: number;
+  risk_model?: string;
   lot_size?: number;
   capital?: number;
   status: ValidationStatus;
@@ -80,6 +84,10 @@ export function makeValidationRecord(result: FnoScanResponse): ValidationRecord 
     option_target1: finite(option.option_target1),
     option_target2: finite(option.option_target2),
     option_rr: optionRR(option),
+    premium_risk_percent: finite(option.premium_risk_percent),
+    option_target1_percent: finite(option.option_target1_percent),
+    option_target2_percent: finite(option.option_target2_percent),
+    risk_model: option.risk_model ? String(option.risk_model) : undefined,
     lot_size: finite(option.lot_size),
     capital: finite(option.amount_required_1_lot),
     status: 'OPEN',
