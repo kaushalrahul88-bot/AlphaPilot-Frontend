@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ShieldAlert, AlertTriangle, CheckCircle, Settings as SettingsIcon } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Settings as SettingsIcon } from 'lucide-react';
 import { useStore } from '@/store/StoreContext';
 import { Card, CardHeader, CardBody, StatCard, Badge, Button, Input, Table, TableRow, TableCell, Modal } from '@/components/ui';
 import { riskReport, checkTradeViolation } from '@/lib/risk';
-import { formatCurrency, formatPct } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
+import { RiskDisciplineSimulator } from '@/components/RiskDisciplineSimulator';
 
 export function RiskCenter() {
   const { positions, riskLimits, updateRiskLimits, tradingCapital, journal } = useStore();
@@ -38,6 +39,8 @@ export function RiskCenter() {
           </ul>
         </div>
       )}
+
+      <RiskDisciplineSimulator positions={positions} journal={journal} riskLimits={riskLimits} tradingCapital={tradingCapital} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Max Risk per Trade" value={formatCurrency(report.maxRiskPerTrade, true)} subvalue={`${report.riskPerTradePct}% of capital`} accent="amber" />
