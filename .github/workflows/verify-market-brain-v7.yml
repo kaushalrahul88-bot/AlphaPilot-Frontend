@@ -1,4 +1,4 @@
-name: Verify Market Brain v7
+name: Verify AlphaPilot Frontend
 
 on:
   pull_request:
@@ -22,6 +22,6 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci
-      - run: npx eslint src/components/MarketBrainContinuousRegimeResearch.tsx src/lib/marketBrainV7ResearchStorage.ts src/App.tsx
+      - run: npx eslint src/components/MarketBrainContinuousRegimeResearch.tsx src/components/RiskDecisionLedgerPanel.tsx src/components/RiskDisciplineSimulator.tsx src/lib/marketBrainV7ResearchStorage.ts src/lib/riskDecisionLedger.ts src/lib/riskDisciplineApi.ts src/pages/RiskCenter.tsx src/App.tsx
       - run: npx tsc --noEmit
       - run: npm run build
