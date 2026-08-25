@@ -1,7 +1,7 @@
-import { LayoutDashboard, LineChart, Wallet, Layers, Brain, Target, Calculator, BookOpen, ShieldAlert, Newspaper, Bell, Settings, Menu, X, ScanLine, FlaskConical, BarChart3, Activity, HeartPulse, Database, Gauge } from 'lucide-react';
+import { LayoutDashboard, LineChart, Wallet, Layers, Brain, Target, Calculator, BookOpen, ShieldAlert, Newspaper, Bell, Settings, Menu, X, ScanLine, FlaskConical, BarChart3, Activity, HeartPulse, Database, Gauge, MoonStar } from 'lucide-react';
 import { useState } from 'react';
 
-export type PageKey = 'dashboard' | 'markets' | 'portfolio' | 'options' | 'ai-analyst' | 'trade-scanner' | 'commodity-diagnostics' | 'commodity-backtest' | 'live-validation' | 'system-health' | 'data-quality' | 'backtest' | 'direction-diagnostics' | 'trade-setup' | 'position-sizing' | 'journal' | 'risk' | 'news' | 'alerts' | 'settings';
+export type PageKey = 'dashboard' | 'markets' | 'portfolio' | 'options' | 'ai-analyst' | 'trade-scanner' | 'commodity-next-session' | 'commodity-diagnostics' | 'commodity-backtest' | 'live-validation' | 'system-health' | 'data-quality' | 'backtest' | 'direction-diagnostics' | 'trade-setup' | 'position-sizing' | 'journal' | 'risk' | 'news' | 'alerts' | 'settings';
 
 const NAV_ITEMS: { key: PageKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -10,6 +10,7 @@ const NAV_ITEMS: { key: PageKey; label: string; icon: typeof LayoutDashboard }[]
   { key: 'options', label: 'Options', icon: Layers },
   { key: 'ai-analyst', label: 'AI Analyst', icon: Brain },
   { key: 'trade-scanner', label: 'Trade Scanner', icon: ScanLine },
+  { key: 'commodity-next-session', label: 'Commodity Next Session', icon: MoonStar },
   { key: 'commodity-diagnostics', label: 'Commodity Diagnostics', icon: Gauge },
   { key: 'commodity-backtest', label: 'Commodity Backtest', icon: FlaskConical },
   { key: 'live-validation', label: 'Live Validation', icon: Activity },
