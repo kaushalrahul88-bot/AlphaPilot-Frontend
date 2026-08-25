@@ -16,7 +16,7 @@ export type PaperTradeRiskInputs = {
 
 export type PaperTradeEvidence = {
   paper_trades: number;
-  clean_paper_sessions: 0;
+  clean_paper_sessions: number;
   expectancy_r: number;
   profit_factor: number;
   max_drawdown_r: number;
@@ -99,7 +99,7 @@ export function paperTradeRiskInputs(trades: PaperTrade[]): PaperTradeRiskInputs
   };
 }
 
-export function paperTradeEvidence(trades: PaperTrade[]): PaperTradeEvidence {
+export function paperTradeEvidence(trades: PaperTrade[], cleanPaperSessions = 0): PaperTradeEvidence {
   const closed = trades
     .filter(row => row.status === 'CLOSED' && row.realized_pnl_rupees !== null)
     .sort((a, b) => (a.closed_at ?? '').localeCompare(b.closed_at ?? ''));
@@ -116,7 +116,7 @@ export function paperTradeEvidence(trades: PaperTrade[]): PaperTradeEvidence {
   }
   return {
     paper_trades: closed.length,
-    clean_paper_sessions: 0,
+    clean_paper_sessions: Math.max(0, Math.floor(cleanPaperSessions)),
     expectancy_r: rValues.length ? Number((rValues.reduce((sum, value) => sum + value, 0) / rValues.length).toFixed(3)) : 0,
     profit_factor: grossLosses > 0 ? Number((grossWins / grossLosses).toFixed(3)) : grossWins > 0 ? 99 : 0,
     max_drawdown_r: Number(maxDrawdown.toFixed(3)),
