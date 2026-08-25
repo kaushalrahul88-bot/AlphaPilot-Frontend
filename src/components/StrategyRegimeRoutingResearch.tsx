@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, BrainCircuit, LockKeyhole, Play } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader, Input } from '@/components/ui';
 import {
@@ -13,20 +13,35 @@ function fmtPct(value:number){return `${Number(value||0).toFixed(1)}%`}
 function readable(value:string){return value.replaceAll('_',' ').replace('1 20','1.20').replace('0 10','0.10')}
 function daysBetween(start:string,end:string){return Math.round((new Date(`${end}T00:00:00Z`).getTime()-new Date(`${start}T00:00:00Z`).getTime())/86400000)}
 function profitFactor(metrics:RoutingMetrics){return metrics.profit_factor_unbounded?'∞':metrics.profit_factor==null?'—':metrics.profit_factor.toFixed(2)}
+function progressState(seconds:number){
+  if(seconds<20)return{label:'Loading instruments and validating the request',percent:Math.min(15,5+seconds*0.5)};
+  if(seconds<90)return{label:'Replaying four strategies on development option premiums',percent:15+(seconds-20)*0.35};
+  if(seconds<150)return{label:'Building lagged development Market Brain context',percent:40+(seconds-90)*0.25};
+  if(seconds<240)return{label:'Replaying the untouched option-premium holdout',percent:55+(seconds-150)*0.25};
+  return{label:'Building holdout context and evaluating frozen gates',percent:Math.min(94,77+(seconds-240)*0.05)};
+}
 
 export function StrategyRegimeRoutingResearch(){
   const [symbolsText,setSymbolsText]=useState('RELIANCE,SBIN,AXISBANK,HDFCBANK,ICICIBANK,TATASTEEL,HINDALCO,ONGC,INFY,TCS');
-  const [developmentStart,setDevelopmentStart]=useState(offset(65));
-  const [developmentEnd,setDevelopmentEnd]=useState(offset(36));
-  const [holdoutStart,setHoldoutStart]=useState(offset(35));
+  const [developmentStart,setDevelopmentStart]=useState(offset(35));
+  const [developmentEnd,setDevelopmentEnd]=useState(offset(27));
+  const [holdoutStart,setHoldoutStart]=useState(offset(26));
   const [holdoutEnd,setHoldoutEnd]=useState(offset(5));
   const [premiumRR,setPremiumRR]=useState('1.5');
   const [maxTrades,setMaxTrades]=useState('50');
   const [costBps,setCostBps]=useState('10');
   const [running,setRunning]=useState(false);
+  const [elapsedSeconds,setElapsedSeconds]=useState(0);
   const [error,setError]=useState<string|null>(null);
   const [result,setResult]=useState<StrategyRegimeRoutingResponse|null>(null);
   const symbols=useMemo(()=>symbolsText.split(',').map(value=>value.trim().toUpperCase()).filter(Boolean).slice(0,25),[symbolsText]);
+
+  useEffect(()=>{
+    if(!running)return;
+    setElapsedSeconds(0);
+    const timer=window.setInterval(()=>setElapsedSeconds(value=>value+1),1000);
+    return()=>window.clearInterval(timer);
+  },[running]);
 
   async function run(){
     if(!symbols.length){setError('Enter at least one symbol.');return}
@@ -51,6 +66,8 @@ export function StrategyRegimeRoutingResearch(){
   }
 
   const validated=result?.decision==='VALIDATED_STRATEGY_REGIME_ROUTER';
+  const insufficient=result?.decision==='INSUFFICIENT_DATA_FOR_STRATEGY_REGIME_ROUTER';
+  const progress=progressState(elapsedSeconds);
   const developmentMetrics=result?.development.book_eligible_metrics;
   const holdoutMetrics=result?.holdout.routed_metrics;
   return <Card><CardHeader title="Strategy–Regime Routing v1 — Book-Informed Price Action" subtitle="Development-only route selection, followed by one untouched option-premium holdout after costs. Research cannot change scanner, paper or live permissions." action={<BrainCircuit size={18} className="text-violet-500"/>}/><CardBody className="space-y-5">
@@ -68,17 +85,21 @@ export function StrategyRegimeRoutingResearch(){
       <Input label="Max trades / strategy" type="number" value={maxTrades} onChange={setMaxTrades}/>
       <Input label="Round-trip cost (bps)" type="number" value={costBps} onChange={setCostBps}/>
     </div>
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3"><p className="text-[11px] text-slate-500">The holdout should span at least two calendar months; otherwise the fixed month-stability gate fails. This request can be slow because it replays four strategies and builds lagged broad-market context for both samples.</p><Button variant="primary" onClick={()=>void run()} disabled={running||!symbols.length}><Play size={14} className="inline mr-1"/>{running?'Replaying development and holdout…':'Run Locked Routing Test'}</Button></div>
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3"><p className="text-[11px] text-slate-500">The holdout should span at least two calendar months; otherwise the fixed month-stability gate fails. This request can be slow because it replays four strategies and builds lagged broad-market context for both samples.</p><Button variant="primary" onClick={()=>void run()} disabled={running||!symbols.length}><Play size={14} className="inline mr-1"/>{running?'Test running…':'Run Locked Routing Test'}</Button></div>
+
+    {running&&<div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20 p-3" role="status" aria-live="polite"><div className="flex flex-wrap justify-between gap-2 text-xs"><span className="font-semibold">{progress.label}</span><span className="text-slate-500">{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')} elapsed</span></div><div className="h-2 rounded-full bg-blue-100 dark:bg-blue-950 mt-2 overflow-hidden"><div className="h-full rounded-full bg-blue-600 transition-[width] duration-1000" style={{width:`${progress.percent}%`}}/></div><p className="text-[10px] text-slate-500 mt-2">Progress is stage-based because the backend returns the locked result only after both samples finish; it never exposes or retunes the holdout mid-run.</p></div>}
 
     {error&&<div className="rounded-lg border border-red-200 p-3 text-sm text-red-600">{error}</div>}
     {result&&<>
-      <div className={`rounded-lg border p-4 ${validated?'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20':'border-red-300 bg-red-50/50 dark:bg-red-950/20'}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">Untouched holdout decision</p><p className="text-xs text-slate-500 mt-1">{result.development.selected_route_ids.length} development-selected route(s) · {result.failed_gates.length} failed final gate(s)</p></div><Badge variant={validated?'green':'red'}>{result.decision}</Badge></div>{result.failed_gates.length>0&&<p className="text-xs text-red-600 mt-3 capitalize"><b>Failed:</b> {result.failed_gates.map(readable).join(' · ')}</p>}</div>
+      <div className={`rounded-lg border p-4 ${validated?'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20':insufficient?'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20':'border-red-300 bg-red-50/50 dark:bg-red-950/20'}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{insufficient?'Data-quality decision':'Untouched holdout decision'}</p><p className="text-xs text-slate-500 mt-1">{insufficient?'Economic gates are not valid until the source-data gate passes.':`${result.development.selected_route_ids.length} development-selected route(s) · ${result.failed_gates.length} failed final gate(s)`}</p></div><Badge variant={validated?'green':insufficient?'amber':'red'}>{result.decision}</Badge></div>{result.failed_gates.length>0&&<p className={`text-xs mt-3 capitalize ${insufficient?'text-amber-700':'text-red-600'}`}><b>{insufficient?'Missing data':'Failed'}:</b> {result.failed_gates.map(readable).join(' · ')}</p>}</div>
 
       {developmentMetrics&&holdoutMetrics&&<div className="grid grid-cols-1 xl:grid-cols-2 gap-3"><MetricsPanel title="Development · book eligible" metrics={developmentMetrics}/><MetricsPanel title="Untouched holdout · routed" metrics={holdoutMetrics}/></div>}
 
       <div><p className="text-sm font-semibold mb-2">Development route selection</p><div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="p-2 text-left">Route</th><th>Trades</th><th>Symbols</th><th>Dates</th><th>Avg R</th><th>PF</th><th>Max DD</th><th>Selection</th></tr></thead><tbody>{result.development.route_candidates.map(route=><tr key={route.route_id} className="border-t"><td className="p-2 font-semibold">{route.route_id}</td><td className="text-center">{route.development_metrics.trades}</td><td className="text-center">{route.development_metrics.unique_symbols}</td><td className="text-center">{route.development_metrics.unique_dates}</td><td className="text-center">{fmtR(route.development_metrics.average_r)}</td><td className="text-center">{profitFactor(route.development_metrics)}</td><td className="text-center">{fmtR(route.development_metrics.max_drawdown_r)}</td><td className="text-center"><Badge variant={route.selected_on_development?'green':'red'}>{route.selected_on_development?'SELECTED':'REJECTED'}</Badge></td></tr>)}</tbody></table></div>{result.development.route_candidates.length===0&&<p className="text-xs text-slate-500 mt-2">No book-eligible development route had a resolvable sample.</p>}</div>
 
-      <div><p className="text-sm font-semibold mb-2">Fixed acceptance gates</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2">{Object.entries(result.acceptance_gates).map(([name,passed])=><div key={name} className="rounded-lg border p-3 flex items-center justify-between gap-3"><span className="text-xs capitalize">{readable(name)}</span><Badge variant={passed?'green':'red'}>{passed?'PASS':'FAIL'}</Badge></div>)}</div></div>
+      {result.data_quality_gates&&<div><p className="text-sm font-semibold mb-2">Source-data quality gates</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2">{Object.entries(result.data_quality_gates).map(([name,passed])=><div key={name} className="rounded-lg border p-3 flex items-center justify-between gap-3"><span className="text-xs capitalize">{readable(name)}</span><Badge variant={passed?'green':'red'}>{passed?'PASS':'FAIL'}</Badge></div>)}</div></div>}
+
+      <div><p className="text-sm font-semibold mb-2">Fixed economic acceptance gates</p>{insufficient&&<p className="text-xs text-amber-700 mb-2">Shown for transparency, but this run cannot support an economic conclusion because its source-data gate failed.</p>}<div className="grid grid-cols-1 md:grid-cols-2 gap-2">{Object.entries(result.acceptance_gates).map(([name,passed])=><div key={name} className="rounded-lg border p-3 flex items-center justify-between gap-3"><span className="text-xs capitalize">{readable(name)}</span><Badge variant={passed?'green':'red'}>{passed?'PASS':'FAIL'}</Badge></div>)}</div></div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3"><SourcePanel label="Development source" source={result.source_diagnostics.development}/><SourcePanel label="Holdout source" source={result.source_diagnostics.holdout}/></div>
       <p className="text-[11px] text-slate-500">Protocol {result.protocol_revision}. Market context is deliberately lagged by {result.source_diagnostics.holdout.context_match.context_lag_minutes} minutes. A positive result remains research-only; it does not arm paper or live trading.</p>
@@ -92,7 +113,9 @@ function MetricsPanel({title,metrics}:{title:string;metrics:RoutingMetrics}){
 
 function SourcePanel({label,source}:{label:string;source:StrategyRegimeRoutingResponse['source_diagnostics']['development']}){
   const errors=source.option_errors.length+source.context_errors.length;
-  return <div className="rounded-lg border p-3 text-xs"><div className="flex justify-between gap-3"><b>{label}</b><Badge variant={errors?'amber':'green'}>{errors?`${errors} ERRORS`:'CLEAN'}</Badge></div><p className="text-slate-500 mt-2">{source.period.start_date} → {source.period.end_date} · {source.option_trade_count} option trades · {source.context_match.matched_trades}/{source.context_match.input_trades} matched to closed Market Brain context ({fmtPct(source.context_match.match_rate_pct)})</p></div>;
+  const errorRows=[...source.option_errors.map(row=>({group:String(row.stage||'OPTION_REPLAY'),message:String(row.error||'Unknown option error')})),...source.context_errors.map(row=>({group:'MARKET_CONTEXT',message:`${row.symbol}: ${row.error}`}))];
+  const grouped=errorRows.reduce<Record<string,number>>((counts,row)=>({...counts,[row.group]:(counts[row.group]||0)+1}),{});
+  return <div className="rounded-lg border p-3 text-xs"><div className="flex justify-between gap-3"><b>{label}</b><Badge variant={errors?'amber':'green'}>{errors?`${errors} ERRORS`:'CLEAN'}</Badge></div><p className="text-slate-500 mt-2">{source.period.start_date} → {source.period.end_date} · {source.option_trade_count} option trades · {source.market_context_observations} context observations · {source.context_match.matched_trades}/{source.context_match.input_trades} matched ({fmtPct(source.context_match.match_rate_pct)})</p>{errors>0&&<details className="mt-2"><summary className="cursor-pointer font-semibold">Show error diagnosis</summary><p className="text-slate-500 mt-2">{Object.entries(grouped).map(([name,count])=>`${name}: ${count}`).join(' · ')}</p><div className="mt-2 space-y-1">{errorRows.slice(0,5).map((row,index)=><p key={`${row.group}-${index}`} className="text-[11px] text-amber-700 break-words"><b>{row.group}:</b> {row.message}</p>)}</div>{errors>5&&<p className="text-[10px] text-slate-500 mt-1">Showing 5 of {errors} errors.</p>}</details>}</div>;
 }
 
 function Metric({label,value}:{label:string;value:string}){return <div><p className="text-[10px] text-slate-500">{label}</p><p className="text-sm font-semibold mt-0.5">{value}</p></div>}

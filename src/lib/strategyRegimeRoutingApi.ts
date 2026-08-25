@@ -36,8 +36,12 @@ export type StrategyRegimeRoutingResponse = {
   market_brain_permission_changed:boolean;
   paper_trading_permission_changed:boolean;
   live_execution_enabled:boolean;
-  decision:'VALIDATED_STRATEGY_REGIME_ROUTER'|'NO_VALIDATED_STRATEGY_REGIME_ROUTER'|string;
+  decision:'VALIDATED_STRATEGY_REGIME_ROUTER'|'NO_VALIDATED_STRATEGY_REGIME_ROUTER'|'INSUFFICIENT_DATA_FOR_STRATEGY_REGIME_ROUTER'|string;
   failed_gates:string[];
+  economic_failed_gates?:string[];
+  data_quality_status?:'COMPLETE'|'INCOMPLETE'|string;
+  economic_evaluation_status?:'VALID_SAMPLE'|'NOT_EVALUABLE'|string;
+  data_quality_gates?:Record<string,boolean>;
   cost_model:{round_trip_cost_bps:number};
   book_knowledge:{
     role:string;
