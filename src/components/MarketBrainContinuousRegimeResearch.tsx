@@ -316,12 +316,6 @@ export function MarketBrainContinuousRegimeResearch() {
     (sum, result) => sum + result.context_errors.length + result.backtest_errors.length,
     0,
   );
-  const runLabel = running
-    ? 'Running v7…'
-    : completed
-      ? `Resume v7 · ${completed}/${BLOCKS.length}`
-      : 'Run Market Brain v7';
-
   return <Card><CardHeader title="Market Brain v7 — Continuous Regime Quality" subtitle="The locked 11–21 August holdout is complete. The continuous model did not validate; production remains unchanged." action={<BrainCircuit size={18} className="text-indigo-500"/>}/><CardBody className="space-y-4">
     <div className="flex gap-2 flex-wrap"><Badge variant="blue">MARKET BRAIN v7</Badge><Badge variant="red">FROZEN CLOSED</Badge><Badge variant="default">7 CONTINUOUS FEATURES</Badge><Badge variant="default">L2 LOGISTIC</Badge><Badge variant="default">CALIBRATION FIRST</Badge><Badge variant="default">LOCKED H-1</Badge><Badge variant="default">RESUMABLE LEDGER</Badge><Badge variant="default">NO RETUNING</Badge><Badge variant="default">PRODUCTION UNCHANGED</Badge></div>
 
