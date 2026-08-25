@@ -1,15 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ShieldCheck, ShieldX } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Select, StatCard } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
 import { evaluateRiskDiscipline, type RiskDisciplineMode, type RiskDisciplineRequest, type RiskDisciplineResult } from '@/lib/riskDisciplineApi';
 import { appendRiskDecisionRecord } from '@/lib/riskDecisionLedger';
-import type { JournalEntry, Position, RiskLimits } from '@/lib/types';
+import { openPaperTrade } from '@/lib/paperTradeLifecycleApi';
+import {
+  PAPER_TRADE_LIFECYCLE_EVENT,
+  paperTradeEvidence,
+  paperTradeRiskInputs,
+  readPaperTrades,
+  upsertPaperTrade,
+} from '@/lib/paperTradeLifecycleStorage';
+import type { RiskLimits } from '@/lib/types';
 
 type GateKey = 'account_state_verified' | 'executable_nse_session' | 'fresh_intraday_candles' | 'universe_scan_complete' | 'fno_confirmation_complete' | 'quality_checks_complete' | 'liquidity_passed';
 
 const GATES: { key: GateKey; label: string }[] = [
-  { key: 'account_state_verified', label: 'Portfolio/journal records verified' },
+  { key: 'account_state_verified', label: 'Account reconciled; no untracked positions' },
   { key: 'executable_nse_session', label: 'Executable NSE session' },
   { key: 'fresh_intraday_candles', label: 'Fresh intraday candles' },
   { key: 'universe_scan_complete', label: '44/44 universe scan' },
@@ -28,18 +36,6 @@ const INITIAL_GATES: Record<GateKey, boolean> = {
   liquidity_passed: false,
 };
 
-function groupForPosition(position: Position) {
-  if (position.exchange === 'MCX') return 'MCX_ENERGY';
-  if (['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX'].includes(position.symbol.toUpperCase())) return 'INDEX_DIRECTIONAL';
-  if (position.exchange === 'NSE') return 'NIFTY_LARGE_CAP';
-  return 'UNCLASSIFIED_' + position.symbol.toUpperCase();
-}
-
-function journalClose(entry: JournalEntry) {
-  const parsed = new Date(entry.date + 'T15:30:00+05:30');
-  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : new Date().toISOString();
-}
-
 function number(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -49,41 +45,48 @@ function label(code: string) {
   return code.replace(/^ARMING_/, '').replace(/_/g, ' ').toLowerCase().replace(/^./, value => value.toUpperCase());
 }
 
-export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradingCapital }: { positions: Position[]; journal: JournalEntry[]; riskLimits: RiskLimits; tradingCapital: number }) {
+export function RiskDisciplineSimulator({ riskLimits, tradingCapital }: { riskLimits: RiskLimits; tradingCapital: number }) {
   const [mode, setMode] = useState<RiskDisciplineMode>('PAPER');
   const [symbol, setSymbol] = useState('RELIANCE');
   const [optionType, setOptionType] = useState<'CE' | 'PE'>('CE');
   const [correlationGroup, setCorrelationGroup] = useState('NIFTY_LARGE_CAP');
+  const [expiry, setExpiry] = useState('');
+  const [strike, setStrike] = useState('');
   const [entry, setEntry] = useState('100');
   const [stop, setStop] = useState('80');
   const [target, setTarget] = useState('132');
   const [lotSize, setLotSize] = useState('25');
   const [costs, setCosts] = useState('50');
   const [gates, setGates] = useState<Record<GateKey, boolean>>(INITIAL_GATES);
-  const [paperTrades, setPaperTrades] = useState('0');
-  const [cleanSessions, setCleanSessions] = useState('0');
-  const [expectancy, setExpectancy] = useState('0');
-  const [profitFactor, setProfitFactor] = useState('0');
-  const [drawdownR, setDrawdownR] = useState('0');
   const [manualApproval, setManualApproval] = useState(false);
+  const [trades, setTrades] = useState(readPaperTrades);
   const [running, setRunning] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<RiskDisciplineResult | null>(null);
+  const [lastPayload, setLastPayload] = useState<RiskDisciplineRequest | null>(null);
+  const [openedTradeId, setOpenedTradeId] = useState<string | null>(null);
+  const [openNotice, setOpenNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const closed = useMemo(
-    () => journal.filter(row => row.result !== 'OPEN').map(row => ({ pnl_rupees: Number(row.pnl) || 0, closed_at: journalClose(row) })),
-    [journal],
-  );
-  const open = useMemo(() => positions.map(position => ({
-    symbol: position.symbol,
-    correlation_group: groupForPosition(position),
-    risk_rupees: position.stopLoss ? Math.abs(position.avgPrice - position.stopLoss) * Math.abs(position.quantity) : 0,
-    current_value_rupees: Math.abs(position.currentPrice * position.quantity),
-  })), [positions]);
+  useEffect(() => {
+    const reload = () => setTrades(readPaperTrades());
+    window.addEventListener(PAPER_TRADE_LIFECYCLE_EVENT, reload);
+    window.addEventListener('storage', reload);
+    return () => {
+      window.removeEventListener(PAPER_TRADE_LIFECYCLE_EVENT, reload);
+      window.removeEventListener('storage', reload);
+    };
+  }, []);
+
+  const lifecycleInputs = useMemo(() => paperTradeRiskInputs(trades), [trades]);
+  const lifecycleEvidence = useMemo(() => paperTradeEvidence(trades), [trades]);
 
   async function evaluate() {
     setRunning(true);
     setResult(null);
+    setLastPayload(null);
+    setOpenedTradeId(null);
+    setOpenNotice(null);
     setError(null);
     try {
       const payload: RiskDisciplineRequest = {
@@ -100,14 +103,10 @@ export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradin
           estimated_cost_rupees: Math.max(0, number(costs)),
         },
         operational_gates: gates,
-        open_positions: open,
-        closed_trades: closed,
+        open_positions: lifecycleInputs.open_positions,
+        closed_trades: lifecycleInputs.closed_trades,
         controlled_live_evidence: {
-          paper_trades: Math.max(0, Math.floor(number(paperTrades))),
-          clean_paper_sessions: Math.max(0, Math.floor(number(cleanSessions))),
-          expectancy_r: number(expectancy),
-          profit_factor: Math.max(0, number(profitFactor)),
-          max_drawdown_r: Math.max(0, number(drawdownR)),
+          ...lifecycleEvidence,
           manual_approval_recorded: manualApproval,
         },
         policy: {
@@ -120,11 +119,54 @@ export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradin
       };
       const response = await evaluateRiskDiscipline(payload);
       appendRiskDecisionRecord(payload, response);
+      setLastPayload(payload);
       setResult(response);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Risk decision failed.');
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function openApprovedPaperTrade() {
+    if (!lastPayload || result?.final_action !== 'PAPER_TRADE_ONLY') return;
+    if (!expiry || number(strike) <= 0) {
+      setError('Exact expiry and strike are required before opening a paper lifecycle position.');
+      return;
+    }
+    setOpening(true);
+    setError(null);
+    setOpenNotice(null);
+    try {
+      const response = await openPaperTrade(lastPayload, {
+        symbol: lastPayload.proposed_trade.symbol,
+        expiry,
+        strike: number(strike),
+        option_type: lastPayload.proposed_trade.option_type,
+        lot_size: lastPayload.proposed_trade.lot_size,
+      });
+      if (response.status !== 'OPENED_PAPER' || !response.paper_trade) {
+        setResult(response.risk_decision);
+        setError(response.blockers.map(label).join(' · ') || 'Paper lifecycle opening was blocked.');
+        return;
+      }
+      upsertPaperTrade(response.paper_trade);
+      const refreshedPayload: RiskDisciplineRequest = {
+        ...lastPayload,
+        proposed_trade: {
+          ...lastPayload.proposed_trade,
+          entry_price: response.paper_trade.entry_price,
+        },
+        evaluated_at: response.paper_trade.opened_at,
+      };
+      appendRiskDecisionRecord(refreshedPayload, response.risk_decision);
+      setResult(response.risk_decision);
+      setOpenedTradeId(response.paper_trade.trade_id);
+      setOpenNotice('Paper position opened from live Groww option LTP. No broker order was sent.');
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Paper lifecycle opening failed.');
+    } finally {
+      setOpening(false);
     }
   }
 
@@ -141,27 +183,26 @@ export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradin
   }
 
   return <Card>
-    <CardHeader
-      title="Portfolio Risk & Discipline Engine v1"
-      subtitle="Deterministic paper/control preview. It cannot place an order."
-      action={<Badge variant="purple">VALIDATION ONLY</Badge>}
-    />
+    <CardHeader title="Portfolio Risk & Discipline Engine v1" subtitle="Deterministic paper/control preview. It cannot place an order." action={<Badge variant="purple">VALIDATION ONLY</Badge>} />
     <CardBody className="space-y-5">
       <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/20 p-3 text-xs text-blue-700 dark:text-blue-300">
-        Browser-local portfolio/journal data may include demo records. Operational gates below are manual simulation inputs, not proof that System Health or the scanner passed. All gates start blocked.
+        Risk history now comes only from lifecycle paper trades. Existing demo/manual portfolio and journal rows are not submitted. Keep account reconciliation blocked unless you have verified there are no untracked broker positions.
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Select label="Decision mode" value={mode} onChange={value => setMode(value as RiskDisciplineMode)} options={[{ value: 'PAPER', label: 'Paper trade decision' }, { value: 'CONTROLLED_LIVE_PREVIEW', label: 'Controlled-live readiness preview' }]} />
-        <Input label="Symbol" value={symbol} onChange={setSymbol} />
+        <Input label="Underlying symbol" value={symbol} onChange={setSymbol} />
         <Select label="Option" value={optionType} onChange={value => setOptionType(value as 'CE' | 'PE')} options={[{ value: 'CE', label: 'BUY CE' }, { value: 'PE', label: 'BUY PE' }]} />
+        <Input label="Exact expiry" type="date" value={expiry} onChange={setExpiry} />
+        <Input label="Exact strike" type="number" value={strike} onChange={setStrike} placeholder="e.g. 3000" />
         <Input label="Correlation group" value={correlationGroup} onChange={setCorrelationGroup} />
-        <Input label="Premium entry (₹)" type="number" value={entry} onChange={setEntry} />
+        <Input label="Premium entry estimate (₹)" type="number" value={entry} onChange={setEntry} />
         <Input label="Premium stop (₹)" type="number" value={stop} onChange={setStop} />
         <Input label="Premium target (₹)" type="number" value={target} onChange={setTarget} />
         <Input label="Lot size" type="number" value={lotSize} onChange={setLotSize} />
         <Input label="Estimated round-trip costs (₹)" type="number" value={costs} onChange={setCosts} />
       </div>
+      <p className="text-[11px] text-slate-500">The entry estimate is used for the first decision. Opening fetches the exact Groww premium and re-runs every hard gate at that observed price within a two-minute decision window.</p>
 
       <div>
         <div className="flex items-center justify-between gap-3 mb-2">
@@ -176,30 +217,35 @@ export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradin
         </div>
       </div>
 
-      {mode === 'CONTROLLED_LIVE_PREVIEW' && <div className="grid grid-cols-2 md:grid-cols-6 gap-3 rounded-lg border border-amber-200 dark:border-amber-900 p-3">
-        <Input label="Paper trades" type="number" value={paperTrades} onChange={setPaperTrades} />
-        <Input label="Clean sessions" type="number" value={cleanSessions} onChange={setCleanSessions} />
-        <Input label="Expectancy (R)" type="number" value={expectancy} onChange={setExpectancy} />
-        <Input label="Profit factor" type="number" value={profitFactor} onChange={setProfitFactor} />
-        <Input label="Max DD (R)" type="number" value={drawdownR} onChange={setDrawdownR} />
-        <label className="flex items-end gap-2 pb-2 text-xs"><input type="checkbox" checked={manualApproval} onChange={event => setManualApproval(event.target.checked)} />Approval recorded</label>
+      {mode === 'CONTROLLED_LIVE_PREVIEW' && <div className="space-y-3 rounded-lg border border-amber-200 dark:border-amber-900 p-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard label="Verified paper trades" value={String(lifecycleEvidence.paper_trades)} />
+          <StatCard label="Clean sessions" value="0" subvalue="Not attested in v1" accent="red" />
+          <StatCard label="Expectancy" value={lifecycleEvidence.expectancy_r.toFixed(3) + 'R'} />
+          <StatCard label="Profit factor" value={lifecycleEvidence.profit_factor.toFixed(2)} />
+          <StatCard label="Max drawdown" value={lifecycleEvidence.max_drawdown_r.toFixed(2) + 'R'} />
+        </div>
+        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={manualApproval} onChange={event => setManualApproval(event.target.checked)} />Manual approval recorded (preview evidence only)</label>
+        <p className="text-[11px] text-amber-700 dark:text-amber-300">Controlled-live cannot become eligible because clean sessions are deliberately not inferred from trade outcomes.</p>
       </div>}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-slate-500">Capital {formatCurrency(tradingCapital, true)} · {open.length} browser-local open positions · {closed.length} resolved journal trades</p>
+        <p className="text-xs text-slate-500">Capital {formatCurrency(tradingCapital, true)} · {lifecycleInputs.open_positions.length} verified paper opens · {lifecycleInputs.closed_trades.length} verified paper closes</p>
         <Button variant="primary" onClick={() => void evaluate()} disabled={running || tradingCapital <= 0}>{running ? 'Evaluating…' : 'Evaluate hard gates'}</Button>
       </div>
 
       {error && <div className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-900 p-3 text-sm text-red-600"><AlertTriangle size={17} className="shrink-0" />{error}</div>}
+      {openNotice && <div className="flex items-start gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900 p-3 text-sm text-emerald-600"><CheckCircle2 size={17} className="shrink-0" />{openNotice}</div>}
 
       {result && <div className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4">
         <div className={'rounded-lg border p-4 ' + (result.final_action === 'PAPER_TRADE_ONLY' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20')}>
           <div className="flex items-start gap-3">
             {result.final_action === 'PAPER_TRADE_ONLY' ? <ShieldCheck className="text-emerald-500 shrink-0" /> : <ShieldX className="text-red-500 shrink-0" />}
-            <div>
+            <div className="flex-1">
               <p className="font-bold">{result.final_action.replace(/_/g, ' ')}</p>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Live execution enabled: NO · Controlled-live evidence eligible: {result.controlled_live_preview_eligible ? 'YES (preview only)' : 'NO'}</p>
             </div>
+            {result.final_action === 'PAPER_TRADE_ONLY' && mode === 'PAPER' && <Button variant="primary" onClick={() => void openApprovedPaperTrade()} disabled={opening || Boolean(openedTradeId)}>{openedTradeId ? 'Paper position opened' : opening ? 'Opening…' : 'Open exact paper position'}</Button>}
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
