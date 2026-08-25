@@ -3,6 +3,27 @@ import type { RoutingMetrics } from '@/lib/strategyRegimeRoutingApi';
 
 export type DiagnosticRow = {label:string;metrics:RoutingMetrics};
 
+export type PullbackShortOptionH1Trade = {
+  strategy:string;
+  symbol:string;
+  direction:'SHORT'|string;
+  action:'BUY PE'|string;
+  signal_at:string;
+  entry_at?:string|null;
+  underlying_outcome?:string|null;
+  underlying_entry?:number|null;
+  strike?:number|null;
+  expiry_dte?:number|null;
+  option_contract?:string|null;
+  option_entry?:number|null;
+  option_stop?:number|null;
+  outcome?:string|null;
+  r_multiple?:number|null;
+  cost_adjusted_r?:number|null;
+  mfe_r?:number|null;
+  mae_r?:number|null;
+};
+
 export type PullbackShortOptionH1Response = {
   mode:string;
   protocol_revision:string;
@@ -45,6 +66,7 @@ export type PullbackShortOptionH1Response = {
   fixed_acceptance_rules:Record<string,string|number>;
   errors:Array<Record<string,unknown>>;
   limitations:string[];
+  trades:PullbackShortOptionH1Trade[];
 };
 
 async function responseDetail(response:Response){
