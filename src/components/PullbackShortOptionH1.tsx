@@ -1,13 +1,15 @@
 import { useEffect,useMemo,useState } from 'react';
 import { BookOpenCheck,LockKeyhole,Play } from 'lucide-react';
 import { Badge,Button,Card,CardBody,CardHeader } from '@/components/ui';
+import { PullbackOptionTranslationAudit } from '@/components/PullbackOptionTranslationAudit';
 import { runPullbackShortOptionH1,type DiagnosticRow,type PullbackShortOptionH1Response } from '@/lib/pullbackShortOptionH1Api';
 import type { RoutingMetrics } from '@/lib/strategyRegimeRoutingApi';
 
 const STORAGE_KEY='alphapilot.pullbackShortOptionH1.frozen-2026-08-25';
 
-function readable(value:string){return value.replaceAll('_',' ').toLowerCase()}
+function readable(value:string){return value.replaceAll('_',' ').replace('1 20','1.20').replace('70pct','70%').toLowerCase()}
 function fmtR(value:number){return `${value>0?'+':''}${Number(value||0).toFixed(3)}R`}
+function fmtDrawdown(value:number){return `${Math.abs(Number(value||0)).toFixed(3)}R`}
 function fmtPct(value:number){return `${Number(value||0).toFixed(1)}%`}
 function pf(metrics:RoutingMetrics){return metrics.profit_factor_unbounded?'∞':metrics.profit_factor==null?'—':metrics.profit_factor.toFixed(2)}
 function readSaved():PullbackShortOptionH1Response|null{
@@ -49,12 +51,14 @@ export function PullbackShortOptionH1(){
     {result&&<>
       <div className={`rounded-lg border p-4 ${validated?'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20':insufficient?'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20':'border-red-300 bg-red-50/50 dark:bg-red-950/20'}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{insufficient?'Source-data decision':'Official H-1 decision'}</p><p className="text-xs text-slate-500 mt-1">{result.source_diagnostics.resolved_option_trades}/{result.source_diagnostics.attempted_option_replays} option replays resolved · {fmtPct(result.source_diagnostics.option_replay_coverage_pct)}</p></div><Badge variant={validated?'green':insufficient?'amber':'red'}>{result.decision}</Badge></div>{failed&&<p className={`text-xs mt-3 ${insufficient?'text-amber-700':'text-red-600'}`}><b>{insufficient?'Missing data':'Failed'}:</b> {failed}</p>}</div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3"><Metric label="Signals" value={String(result.source_diagnostics.candidate_signals)}/><Metric label="Option trades" value={String(result.holdout_metrics.trades)}/><Metric label="Win rate" value={fmtPct(result.holdout_metrics.win_rate)}/><Metric label="Avg R" value={fmtR(result.holdout_metrics.average_r)}/><Metric label="Total R" value={fmtR(result.holdout_metrics.total_r)}/><Metric label="Profit factor" value={pf(result.holdout_metrics)}/><Metric label="Max DD" value={fmtR(result.holdout_metrics.max_drawdown_r)}/><Metric label="Symbols / dates" value={`${result.holdout_metrics.unique_symbols} / ${result.holdout_metrics.unique_dates}`}/></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3"><Metric label="Signals" value={String(result.source_diagnostics.candidate_signals)}/><Metric label="Option trades" value={String(result.holdout_metrics.trades)}/><Metric label="Win rate" value={fmtPct(result.holdout_metrics.win_rate)}/><Metric label="Avg R" value={fmtR(result.holdout_metrics.average_r)}/><Metric label="Total R" value={fmtR(result.holdout_metrics.total_r)}/><Metric label="Profit factor" value={pf(result.holdout_metrics)}/><Metric label="Max DD" value={fmtDrawdown(result.holdout_metrics.max_drawdown_r)}/><Metric label="Symbols / dates" value={`${result.holdout_metrics.unique_symbols} / ${result.holdout_metrics.unique_dates}`}/></div>
 
       <div><p className="text-sm font-semibold mb-2">Fixed acceptance gates</p>{insufficient&&<p className="text-xs text-amber-700 mb-2">Economic values are visible for transparency but cannot support a conclusion until all data-quality gates pass.</p>}<div className="grid grid-cols-1 md:grid-cols-2 gap-2">{Object.entries(result.acceptance_gates).map(([name,passed])=><div key={name} className="rounded-lg border p-3 flex items-center justify-between gap-3"><span className="text-xs capitalize">{readable(name)}</span><Badge variant={passed?'green':'red'}>{passed?'PASS':'FAIL'}</Badge></div>)}</div></div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3"><DiagnosticTable title="Book price-action grades · diagnostic only" rows={result.book_diagnostics}/><DiagnosticTable title="Market Brain regimes · diagnostic only" rows={result.market_brain_diagnostics.by_regime}/></div>
       <div className="rounded-lg border p-3 text-xs"><b>Market Brain coverage:</b> {result.market_brain_diagnostics.context_match.matched_trades}/{result.market_brain_diagnostics.context_match.input_trades} matched ({fmtPct(result.market_brain_diagnostics.context_match.match_rate_pct)}) with a frozen {result.market_brain_diagnostics.context_lag_minutes}-minute lag. Missing context never removes an option trade.</div>
+
+      <PullbackOptionTranslationAudit trades={result.trades||[]}/>
 
       {result.errors.length>0&&<details className="rounded-lg border border-amber-200 p-3 text-xs"><summary className="cursor-pointer font-semibold">Data and replay errors ({result.errors.length})</summary><div className="space-y-1 mt-2">{result.errors.slice(0,12).map((row,index)=><p key={index} className="text-amber-700 break-words"><b>{String(row.stage||'DATA')}:</b> {String(row.symbol||'')} {String(row.error||'Unknown error')}</p>)}</div>{result.errors.length>12&&<p className="text-[10px] text-slate-500 mt-2">Showing 12 of {result.errors.length} errors.</p>}</details>}
       <p className="text-[11px] text-slate-500">Protocol {result.protocol_revision}. Development ended 10 August; H-1 starts 11 August. Even a validated result remains a research candidate and does not enable scanner, paper or live execution.</p>
