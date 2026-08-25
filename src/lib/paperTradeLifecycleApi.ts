@@ -1,4 +1,4 @@
-import { ALPHAPILOT_API_BASE } from '@/lib/alphaPilotApi';
+import { ALPHAPILOT_API_BASE, API_ERROR_EVENT } from '@/lib/alphaPilotApi';
 import type { RiskDisciplineRequest, RiskDisciplineResult } from '@/lib/riskDisciplineApi';
 
 export type ExactOptionContract = {
@@ -86,7 +86,11 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    throw new Error('Paper lifecycle ' + response.status + ': ' + (detail || response.statusText));
+    const message = 'Paper lifecycle ' + response.status + ': ' + (detail || response.statusText);
+    if ((response.status === 429 || response.status >= 500) && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(API_ERROR_EVENT, { detail: { path, message, captured_at: new Date().toISOString() } }));
+    }
+    throw new Error(message);
   }
   return response.json() as Promise<T>;
 }
