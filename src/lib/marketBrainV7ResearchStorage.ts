@@ -59,7 +59,7 @@ export function readMarketBrainV7Ledger<T, E extends { decision: MarketBrainV7De
   try {
     const raw = window.localStorage.getItem(MARKET_BRAIN_V7_LEDGER_KEY);
     if (!raw) return newMarketBrainV7Ledger(blockOrder);
-    const parsed = JSON.parse(raw) as Partial<MarketBrainV7Ledger<unknown, unknown>>;
+    const parsed = JSON.parse(raw) as Partial<MarketBrainV7Ledger<unknown, { decision:MarketBrainV7Decision }>>;
     if (
       parsed.schema_version !== 1
       || parsed.experiment_id !== 'MARKET_BRAIN_V7_CONTINUOUS_REGIME_QUALITY'
