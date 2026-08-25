@@ -41,7 +41,12 @@ export type RiskDecisionLedgerSummary = {
 };
 
 function available() {
-  return typeof window !== 'undefined' && Boolean(window.localStorage);
+  if (typeof window === 'undefined') return false;
+  try {
+    return Boolean(window.localStorage);
+  } catch {
+    return false;
+  }
 }
 
 function sessionDateIst(value: string | Date) {
