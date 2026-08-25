@@ -1,0 +1,27 @@
+name: Verify Market Brain v7
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - ".github/workflows/verify-market-brain-v7.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npx eslint src/components/MarketBrainContinuousRegimeResearch.tsx src/lib/marketBrainV7ResearchStorage.ts src/App.tsx
+      - run: npx tsc --noEmit
+      - run: npm run build
