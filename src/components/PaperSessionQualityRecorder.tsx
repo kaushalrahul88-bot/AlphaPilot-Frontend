@@ -78,6 +78,8 @@ export function PaperSessionQualityRecorder() {
           const alreadyCaptured = existing.some(row =>
             row.symbol === trade.symbol
             && row.expiry === trade.expiry
+            && row.strike === trade.strike
+            && row.option_type === trade.option_type
             && sessionDateIst(row.captured_at) === today
             && sessionPhase(row.captured_at) === phase
           );
@@ -114,6 +116,8 @@ export function PaperSessionQualityRecorder() {
             captured_at: new Date().toISOString(),
             symbol: trade.symbol,
             expiry: trade.expiry,
+            strike: trade.strike,
+            option_type: trade.option_type,
             checks: { api, quote, candles, options },
           });
         }
