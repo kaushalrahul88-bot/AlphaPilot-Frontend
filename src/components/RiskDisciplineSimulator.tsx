@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ShieldCheck, ShieldX } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader, Input, Select, StatCard } from '@/components/ui';
 import { formatCurrency } from '@/lib/format';
-import { evaluateRiskDiscipline, type RiskDisciplineMode, type RiskDisciplineResult } from '@/lib/riskDisciplineApi';
+import { evaluateRiskDiscipline, type RiskDisciplineMode, type RiskDisciplineRequest, type RiskDisciplineResult } from '@/lib/riskDisciplineApi';
+import { appendRiskDecisionRecord } from '@/lib/riskDecisionLedger';
 import type { JournalEntry, Position, RiskLimits } from '@/lib/types';
 
 type GateKey = 'account_state_verified' | 'executable_nse_session' | 'fresh_intraday_candles' | 'universe_scan_complete' | 'fno_confirmation_complete' | 'quality_checks_complete' | 'liquidity_passed';
@@ -85,7 +86,7 @@ export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradin
     setResult(null);
     setError(null);
     try {
-      const response = await evaluateRiskDiscipline({
+      const payload: RiskDisciplineRequest = {
         mode,
         capital_rupees: tradingCapital,
         proposed_trade: {
@@ -116,7 +117,9 @@ export function RiskDisciplineSimulator({ positions, journal, riskLimits, tradin
           max_open_risk_pct: Math.min(6, Math.max(0.01, riskLimits.maxOpenRiskPct)),
         },
         evaluated_at: new Date().toISOString(),
-      });
+      };
+      const response = await evaluateRiskDiscipline(payload);
+      appendRiskDecisionRecord(payload, response);
       setResult(response);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Risk decision failed.');

@@ -5,6 +5,7 @@ import { Card, CardHeader, CardBody, StatCard, Badge, Button, Input, Table, Tabl
 import { riskReport, checkTradeViolation } from '@/lib/risk';
 import { formatCurrency } from '@/lib/format';
 import { RiskDisciplineSimulator } from '@/components/RiskDisciplineSimulator';
+import { RiskDecisionLedgerPanel } from '@/components/RiskDecisionLedgerPanel';
 
 export function RiskCenter() {
   const { positions, riskLimits, updateRiskLimits, tradingCapital, journal } = useStore();
@@ -41,6 +42,7 @@ export function RiskCenter() {
       )}
 
       <RiskDisciplineSimulator positions={positions} journal={journal} riskLimits={riskLimits} tradingCapital={tradingCapital} />
+      <RiskDecisionLedgerPanel />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Max Risk per Trade" value={formatCurrency(report.maxRiskPerTrade, true)} subvalue={`${report.riskPerTradePct}% of capital`} accent="amber" />
