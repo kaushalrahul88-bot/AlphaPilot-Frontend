@@ -61,7 +61,7 @@ function sessionDateIst(value: string | Date) {
   return part('year') + '-' + part('month') + '-' + part('day');
 }
 
-function validRecord(value: unknown): value is RiskDecisionLedgerRecord {
+export function isRiskDecisionLedgerRecord(value: unknown): value is RiskDecisionLedgerRecord {
   if (!value || typeof value !== 'object') return false;
   const row = value as Partial<RiskDecisionLedgerRecord>;
   return row.schema_version === 1
@@ -88,7 +88,7 @@ export function readRiskDecisionLedger(): RiskDecisionLedgerRecord[] {
   try {
     const raw = window.localStorage.getItem(RISK_DECISION_LEDGER_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter(validRecord).slice(0, MAX_RECORDS) : [];
+    return Array.isArray(parsed) ? parsed.filter(isRiskDecisionLedgerRecord).slice(0, MAX_RECORDS) : [];
   } catch {
     return [];
   }

@@ -43,6 +43,18 @@ export type ValidationRecord = {
   resolution_source?: 'AUTO_OBSERVED' | 'MANUAL';
 };
 
+export function isValidationRecord(value: unknown): value is ValidationRecord {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Partial<ValidationRecord>;
+  return typeof row.id === 'string'
+    && typeof row.symbol === 'string'
+    && typeof row.action === 'string'
+    && typeof row.captured_at === 'string'
+    && typeof row.alpha === 'number'
+    && Number.isFinite(row.alpha)
+    && (row.status === 'OPEN' || row.status === 'TARGET1_HIT' || row.status === 'TARGET2_HIT' || row.status === 'STOP_HIT' || row.status === 'EXPIRED');
+}
+
 function premiumRiskPercent(entry: number) {
   if (entry < 10) return 30;
   if (entry < 30) return 25;
@@ -89,7 +101,7 @@ export function readValidationRecords(): ValidationRecord[] {
     const raw = window.localStorage.getItem(LIVE_VALIDATION_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
-    const records = parsed.map((row: ValidationRecord) => migrateOpenLegacyPlan(row));
+    const records = parsed.filter(isValidationRecord).map(row => migrateOpenLegacyPlan(row));
     const changed = records.some((row: ValidationRecord, index: number) => row !== parsed[index]);
     if (changed) {
       window.localStorage.setItem(LIVE_VALIDATION_STORAGE_KEY, JSON.stringify(records.slice(0, 250)));

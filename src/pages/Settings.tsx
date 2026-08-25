@@ -5,6 +5,7 @@ import { Card, CardHeader, CardBody, Button, Input, Badge } from '@/components/u
 import { scenarioAnalysis, optionScenario } from '@/lib/scenario';
 import { getQuote, INSTRUMENTS, getInstrument } from '@/lib/marketData';
 import { formatCurrency, formatPct } from '@/lib/format';
+import { EvidenceBackupPanel } from '@/components/EvidenceBackupPanel';
 
 export function Settings() {
   const { tradingCapital, setTradingCapital, riskLimits, updateRiskLimits, scannerFilters, setScannerFilters, theme, setTheme } = useStore();
@@ -68,6 +69,8 @@ export function Settings() {
           </div>
         </CardBody>
       </Card>
+
+      <EvidenceBackupPanel />
 
       <Card>
         <CardHeader title="Scanner Filters" subtitle="Default thresholds for the Trade Scanner" />
