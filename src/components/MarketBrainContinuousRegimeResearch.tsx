@@ -93,6 +93,48 @@ const BLOCKS: Block[] = [
 ];
 const BLOCK_IDS = BLOCKS.map(block => block.id);
 
+const OFFICIAL_RESULT = {
+  decision:'NO_VALIDATED_CONTINUOUS_REGIME_QUALITY_EDGE',
+  developmentObservations:247,
+  holdoutObservations:48,
+  holdoutWinRate:37.5,
+  holdoutAvgR:-0.132,
+  holdoutTotalR:-6.34,
+  probabilityMetrics:{
+    modelBrier:0.253218,
+    baselineBrier:0.251555,
+    brierImprovementPct:-0.66,
+    modelLogLoss:0.699604,
+    baselineLogLoss:0.696258,
+    logLossImprovementPct:-0.48,
+    rocAuc:0.505556,
+  },
+  bands:[
+    { band:'LOW', trades:16, avgProbability:0.4728, winRate:31.2, avgR:-0.221, totalR:-3.54 },
+    { band:'MID', trades:16, avgProbability:0.5062, winRate:43.8, avgR:-0.094, totalR:-1.51 },
+    { band:'HIGH', trades:16, avgProbability:0.5522, winRate:37.5, avgR:-0.081, totalR:-1.29 },
+  ],
+  economicSpreads:{ winRatePp:6.3, avgR:0.140 },
+  gates:{
+    sample_gate:true,
+    brier_improvement_at_least_10pct:false,
+    log_loss_improvement_at_least_5pct:false,
+    auc_at_least_0_60:false,
+    high_minus_low_win_rate_at_least_10pp:false,
+    high_minus_low_avg_r_at_least_0_20:false,
+    high_avg_r_at_least_0_10:false,
+  },
+  coefficients:{
+    breadth_alignment:-0.00914699,
+    flow_alignment:-0.02834857,
+    nifty_vwap_alignment:0,
+    bank_vwap_alignment:0,
+    nifty_trend_alignment:-0.1026228,
+    bank_trend_alignment:0.16038051,
+    volatility_expansion:0.0889277,
+  },
+} as const;
+
 function isBlockResult(value: unknown): value is BlockResult {
   if (!value || typeof value !== 'object') return false;
   const result = value as Partial<BlockResult>;
@@ -280,19 +322,30 @@ export function MarketBrainContinuousRegimeResearch() {
       ? `Resume v7 · ${completed}/${BLOCKS.length}`
       : 'Run Market Brain v7';
 
-  return <Card><CardHeader title="Market Brain v7 — Continuous Regime Quality" subtitle="A frozen, calibrated setup-quality model with a locked 11–21 August holdout. Production remains unchanged." action={<BrainCircuit size={18} className="text-indigo-500"/>}/><CardBody className="space-y-4">
-    <div className="flex gap-2 flex-wrap"><Badge variant="blue">MARKET BRAIN v7</Badge><Badge variant="default">7 CONTINUOUS FEATURES</Badge><Badge variant="default">L2 LOGISTIC</Badge><Badge variant="default">CALIBRATION FIRST</Badge><Badge variant="default">LOCKED H-1</Badge><Badge variant="default">RESUMABLE LEDGER</Badge><Badge variant="default">NO RETUNING</Badge><Badge variant="default">PRODUCTION UNCHANGED</Badge></div>
+  return <Card><CardHeader title="Market Brain v7 — Continuous Regime Quality" subtitle="The locked 11–21 August holdout is complete. The continuous model did not validate; production remains unchanged." action={<BrainCircuit size={18} className="text-indigo-500"/>}/><CardBody className="space-y-4">
+    <div className="flex gap-2 flex-wrap"><Badge variant="blue">MARKET BRAIN v7</Badge><Badge variant="red">FROZEN CLOSED</Badge><Badge variant="default">7 CONTINUOUS FEATURES</Badge><Badge variant="default">L2 LOGISTIC</Badge><Badge variant="default">CALIBRATION FIRST</Badge><Badge variant="default">LOCKED H-1</Badge><Badge variant="default">RESUMABLE LEDGER</Badge><Badge variant="default">NO RETUNING</Badge><Badge variant="default">PRODUCTION UNCHANGED</Badge></div>
 
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="max-w-4xl space-y-1"><p className="text-xs text-slate-500">Development ends 10 August. H-1 covers 11–21 August and is scored once after all development observations are saved. Acceptance requires better Brier score, log loss, AUC and economic ordering—not merely a positive pooled result.</p><p className="text-[11px] text-slate-500 flex items-center gap-1"><LockKeyhole size={12}/>The backend rejects any observation outside its frozen development or holdout dates.</p></div><div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => void run()} disabled={running || Boolean(evaluation)}><Play size={14} className="inline mr-1"/>{evaluation ? 'v7 Complete' : runLabel}</Button><Button variant="default" onClick={() => exportMarketBrainV7Ledger(ledger)} disabled={!completed}><Download size={14} className="inline mr-1"/>Export Ledger</Button><Button variant="default" onClick={reset} disabled={running || !completed}><RotateCcw size={14} className="inline mr-1"/>Reset Run</Button></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="max-w-4xl space-y-1"><p className="text-xs text-slate-500">Development ends 10 August. H-1 covers 11–21 August and is scored once after all development observations are saved. Acceptance requires better Brier score, log loss, AUC and economic ordering—not merely a positive pooled result.</p><p className="text-[11px] text-slate-500 flex items-center gap-1"><LockKeyhole size={12}/>The backend rejects any observation outside its frozen development or holdout dates.</p></div><div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => void run()} disabled><Play size={14} className="inline mr-1"/>v7 Closed</Button><Button variant="default" onClick={() => exportMarketBrainV7Ledger(ledger)} disabled={!completed}><Download size={14} className="inline mr-1"/>Export Ledger</Button><Button variant="default" onClick={reset} disabled={running || !completed}><RotateCcw size={14} className="inline mr-1"/>Reset Run</Button></div></div>
 
-    <div className="rounded-lg border p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><span><strong>Checkpoint:</strong> {completed}/{BLOCKS.length} blocks saved · evaluation {evaluation ? 'saved' : 'pending'}</span><Badge variant={evaluation ? 'green' : completed ? 'blue' : 'default'}>{evaluation ? 'COMPLETE' : completed ? 'RESUMABLE' : 'NOT STARTED'}</Badge></div><p className="text-[11px] text-slate-500 mt-1">Protocol {ledger.protocol_revision} · created {new Date(ledger.created_at).toLocaleString('en-IN')} · updated {new Date(ledger.updated_at).toLocaleString('en-IN')}</p></div>
+    <div className="rounded-lg border border-indigo-200 p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><span><strong>Official checkpoint:</strong> 247 development observations fitted · 48 locked H-1 observations scored once</span><Badge variant="green">EVIDENCE SAVED</Badge></div><p className="text-[11px] text-slate-500 mt-1">Protocol v7-frozen-2026-08-25 · decision {OFFICIAL_RESULT.decision} · GitHub Actions run 32829764385</p></div>
 
     {progress && <div className="rounded-lg border p-3 text-xs">{progress}</div>}
     {error && <div className="rounded-lg border border-red-200 p-3 text-sm text-red-600">{error} Saved blocks remain intact; Resume will skip them and retry the unfinished step.</div>}
 
-    <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="p-2 text-left">Block</th><th>Role</th><th>Dates</th><th>Setups</th><th>Eligible</th><th>Matched</th><th>Match</th><th>Avg R</th><th>Win</th><th>Errors</th><th>Status</th></tr></thead><tbody>{BLOCKS.map(block => { const result = results[block.id]; const errors = result ? result.context_errors.length + result.backtest_errors.length : 0; return <tr key={block.id} className="border-t"><td className="p-2 font-semibold">{block.id}</td><td className="text-center"><Badge variant={block.role === 'HOLDOUT' ? 'blue' : 'default'}>{block.role}</Badge></td><td className="text-center">{block.start} → {block.end}</td><td className="text-center">{result?.setup_trades ?? '—'}</td><td className="text-center">{result?.eligible_setup_trades ?? '—'}</td><td className="text-center">{result?.matched_observations ?? '—'}</td><td className="text-center">{result ? fmtPct(result.match_rate_pct) : '—'}</td><td className="text-center">{result ? fmtR(result.overall.avg_r) : '—'}</td><td className="text-center">{result ? fmtPct(result.overall.win_rate) : '—'}</td><td className="text-center">{result ? errors : '—'}</td><td className="text-center"><Badge variant={result ? 'green' : 'default'}>{result ? 'SAVED' : 'PENDING'}</Badge></td></tr>})}</tbody></table></div>
+    {completed > 0 && <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="p-2 text-left">Block</th><th>Role</th><th>Dates</th><th>Setups</th><th>Eligible</th><th>Matched</th><th>Match</th><th>Avg R</th><th>Win</th><th>Errors</th><th>Status</th></tr></thead><tbody>{BLOCKS.map(block => { const result = results[block.id]; const errors = result ? result.context_errors.length + result.backtest_errors.length : 0; return <tr key={block.id} className="border-t"><td className="p-2 font-semibold">{block.id}</td><td className="text-center"><Badge variant={block.role === 'HOLDOUT' ? 'blue' : 'default'}>{block.role}</Badge></td><td className="text-center">{block.start} → {block.end}</td><td className="text-center">{result?.setup_trades ?? '—'}</td><td className="text-center">{result?.eligible_setup_trades ?? '—'}</td><td className="text-center">{result?.matched_observations ?? '—'}</td><td className="text-center">{result ? fmtPct(result.match_rate_pct) : '—'}</td><td className="text-center">{result ? fmtR(result.overall.avg_r) : '—'}</td><td className="text-center">{result ? fmtPct(result.overall.win_rate) : '—'}</td><td className="text-center">{result ? errors : '—'}</td><td className="text-center"><Badge variant={result ? 'green' : 'default'}>{result ? 'SAVED' : 'PENDING'}</Badge></td></tr>})}</tbody></table></div>}
 
     {completed > 0 && <div className="grid grid-cols-2 md:grid-cols-5 gap-3"><Stat label="Development matches" value={String(developmentMatches)}/><Stat label="Holdout matches" value={String(holdoutMatches)}/><Stat label="Data errors" value={String(dataErrors)}/><Stat label="Evaluation" value={evaluation ? 'SCORED' : 'PENDING'}/><div className="rounded-lg border p-3"><p className="text-xs text-slate-500">Decision</p><Badge variant={evaluation?.decision === 'VALIDATED_CONTINUOUS_REGIME_QUALITY_CANDIDATE' ? 'green' : 'default'}>{evaluation?.decision || 'INCOMPLETE'}</Badge></div></div>}
+
+
+    <div className="rounded-lg border border-red-200 p-4 space-y-2"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold">Official frozen decision</p><p className="text-xs text-slate-500">The sample gate passed, but every predictive and economic gate failed.</p></div><Badge variant="red">{OFFICIAL_RESULT.decision}</Badge></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Stat label="Development observations" value={String(OFFICIAL_RESULT.developmentObservations)}/><Stat label="H-1 observations" value={String(OFFICIAL_RESULT.holdoutObservations)}/><Stat label="H-1 win rate" value={fmtPct(OFFICIAL_RESULT.holdoutWinRate)}/><Stat label="H-1 total R" value={fmtR(OFFICIAL_RESULT.holdoutTotalR)}/></div></div>
+
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Metric label="Brier improvement" value={fmtPct(OFFICIAL_RESULT.probabilityMetrics.brierImprovementPct)} detail={`${OFFICIAL_RESULT.probabilityMetrics.modelBrier.toFixed(4)} vs ${OFFICIAL_RESULT.probabilityMetrics.baselineBrier.toFixed(4)}`}/><Metric label="Log-loss improvement" value={fmtPct(OFFICIAL_RESULT.probabilityMetrics.logLossImprovementPct)} detail={`${OFFICIAL_RESULT.probabilityMetrics.modelLogLoss.toFixed(4)} vs ${OFFICIAL_RESULT.probabilityMetrics.baselineLogLoss.toFixed(4)}`}/><Metric label="Holdout ROC AUC" value={OFFICIAL_RESULT.probabilityMetrics.rocAuc.toFixed(3)} detail="Frozen gate ≥ 0.60"/><Metric label="HIGH − LOW Avg R" value={fmtR(OFFICIAL_RESULT.economicSpreads.avgR)} detail={`+${OFFICIAL_RESULT.economicSpreads.winRatePp.toFixed(1)}pp win spread`}/></div>
+
+    <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Official probability band</th><th>Trades</th><th>Avg probability</th><th>Actual win</th><th>Avg R</th><th>Total R</th></tr></thead><tbody>{OFFICIAL_RESULT.bands.map(band => <tr key={band.band} className="border-t"><td className="p-2 font-semibold">{band.band}</td><td className="text-center">{band.trades}</td><td className="text-center">{fmtPct(band.avgProbability * 100)}</td><td className="text-center">{fmtPct(band.winRate)}</td><td className="text-center">{fmtR(band.avgR)}</td><td className="text-center">{fmtR(band.totalR)}</td></tr>)}</tbody></table></div>
+
+    <div><p className="text-sm font-semibold mb-2">Official acceptance gates</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2">{Object.entries(OFFICIAL_RESULT.gates).map(([name, passed]) => <div className="rounded-lg border p-3 flex items-center justify-between gap-3" key={name}><span className="text-xs capitalize">{readableGate(name)}</span><Badge variant={passed ? 'green' : 'red'}>{passed ? 'PASS' : 'FAIL'}</Badge></div>)}</div></div>
+
+    <div><p className="text-sm font-semibold mb-2">Frozen standardized coefficients</p><div className="grid grid-cols-1 md:grid-cols-3 gap-2">{Object.entries(OFFICIAL_RESULT.coefficients).map(([name, coefficient]) => <div className="rounded-lg border p-3" key={name}><p className="text-xs text-slate-500">{name}</p><p className="font-semibold">{coefficient >= 0 ? '+' : ''}{coefficient.toFixed(4)}</p></div>)}</div></div>
 
     {evaluation && <><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Metric label="Brier improvement" value={fmtPct(evaluation.probability_metrics.brier_improvement_pct)} detail={`${evaluation.probability_metrics.model_brier.toFixed(4)} vs ${evaluation.probability_metrics.baseline_brier.toFixed(4)}`}/><Metric label="Log-loss improvement" value={fmtPct(evaluation.probability_metrics.log_loss_improvement_pct)} detail={`${evaluation.probability_metrics.model_log_loss.toFixed(4)} vs ${evaluation.probability_metrics.baseline_log_loss.toFixed(4)}`}/><Metric label="Holdout ROC AUC" value={evaluation.probability_metrics.roc_auc?.toFixed(3) ?? 'N/A'} detail="Frozen gate ≥ 0.60"/><Metric label="HIGH − LOW Avg R" value={fmtR(evaluation.economic_spreads.high_minus_low_avg_r)} detail={`${evaluation.economic_spreads.high_minus_low_win_rate_pp >= 0 ? '+' : ''}${evaluation.economic_spreads.high_minus_low_win_rate_pp.toFixed(1)}pp win spread`}/></div>
 
@@ -302,7 +355,7 @@ export function MarketBrainContinuousRegimeResearch() {
 
     <div><p className="text-sm font-semibold mb-2">Standardized coefficients</p><div className="grid grid-cols-1 md:grid-cols-3 gap-2">{Object.entries(evaluation.model.standardized_coefficients).map(([name, coefficient]) => <div className="rounded-lg border p-3" key={name}><p className="text-xs text-slate-500">{name}</p><p className="font-semibold">{coefficient >= 0 ? '+' : ''}{coefficient.toFixed(4)}</p></div>)}</div></div></>}
 
-    <p className="text-[11px] text-slate-500">The v7 ledger stores raw block observations, development-only standardization, fitted coefficients, every locked holdout prediction, probability bands and all gate outcomes. A validated result remains a research candidate for another unseen confirmation period and cannot alter live trading automatically.</p>
+    <p className="text-[11px] text-slate-500">The official v7 run is closed and cannot be restarted from the dashboard. Its evidence contains the raw observations, development-only standardization, fitted coefficients, locked holdout predictions, probability bands and all gate outcomes. No v7 output can alter live trading.</p>
   </CardBody></Card>;
 }
 
