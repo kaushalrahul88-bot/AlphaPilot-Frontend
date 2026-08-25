@@ -1,0 +1,27 @@
+name: Verify AlphaPilot Frontend
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - ".github/workflows/verify-market-brain-v7.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npx eslint src/components/MarketBrainContinuousRegimeResearch.tsx src/components/StrategyRegimeRoutingResearch.tsx src/components/PullbackShortOptionH1.tsx src/components/PullbackOptionTranslationAudit.tsx src/components/PaperSessionQualityPanel.tsx src/components/PaperSessionQualityRecorder.tsx src/components/PaperTradeLifecyclePanel.tsx src/components/RiskDecisionLedgerPanel.tsx src/components/RiskDisciplineSimulator.tsx src/lib/marketBrainV7ResearchStorage.ts src/lib/strategyRegimeRoutingApi.ts src/lib/pullbackShortOptionH1Api.ts src/lib/paperSessionQualityApi.ts src/lib/paperSessionQualityStorage.ts src/lib/paperTradeLifecycleApi.ts src/lib/paperTradeLifecycleStorage.ts src/lib/riskDecisionLedger.ts src/lib/riskDisciplineApi.ts src/pages/RiskCenter.tsx src/App.tsx
+      - run: npx tsc --noEmit
+      - run: npm run build
