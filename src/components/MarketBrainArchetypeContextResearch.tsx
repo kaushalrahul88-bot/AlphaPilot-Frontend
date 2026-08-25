@@ -1,38 +1,180 @@
-import { useMemo,useState } from 'react';
-import { Layers3,Play } from 'lucide-react';
-import { Badge,Button,Card,CardBody,CardHeader } from '@/components/ui';
+import { useMemo, useState } from 'react';
+import { Download, Layers3, Play, RotateCcw } from 'lucide-react';
+import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import { ALPHAPILOT_API_BASE } from '@/lib/alphaPilotApi';
+import {
+  clearMarketBrainV5Ledger,
+  exportMarketBrainV5Ledger,
+  newMarketBrainV5Ledger,
+  readMarketBrainV5Ledger,
+  saveMarketBrainV5Ledger,
+  type MarketBrainV5Decision,
+  type MarketBrainV5Ledger,
+} from '@/lib/marketBrainResearchStorage';
 
-type Effect={label:string;direction:string;archetype_axis:string;archetype:string;feature:string;value:string;trades:number;avg_r:number;win_rate:number;baseline_trades:number;baseline_avg_r:number;baseline_win_rate:number;delta_avg_r:number;delta_win_rate_pp:number;state:'BOOST'|'DRAG'|'MIXED'|'LOW_SAMPLE'};
-type V5={archetype_counts:Record<string,number>;effects:Effect[];hypotheses_tested:number;eligible_hypotheses:number;boosts:number;drags:number;fixed_effect_rules:{min_group_trades:number;delta_avg_r:number;delta_win_rate_pp:number};archetype_rules:Record<string,string>};
-type Result={setup_trades:number;eligible_setup_trades:number;matched_trades:number;match_rate_pct:number;overall:{trades:number;avg_r:number;win_rate:number;total_r:number};v5_archetype_context:V5};
-type Block={id:string;start:string;end:string};
-const BLOCKS:Block[]=[
-  {id:'S-0A',start:'2026-05-25',end:'2026-06-05'},
-  {id:'S-0B',start:'2026-06-08',end:'2026-06-19'},
-  {id:'S-0C',start:'2026-06-22',end:'2026-07-03'},
-  {id:'S-1',start:'2026-07-06',end:'2026-07-17'},
-  {id:'S-2',start:'2026-07-20',end:'2026-07-31'},
-  {id:'S-3',start:'2026-08-03',end:'2026-08-10'},
+type Effect = { label:string; direction:string; archetype_axis:string; archetype:string; feature:string; value:string; trades:number; avg_r:number; win_rate:number; baseline_trades:number; baseline_avg_r:number; baseline_win_rate:number; delta_avg_r:number; delta_win_rate_pp:number; state:'BOOST'|'DRAG'|'MIXED'|'LOW_SAMPLE' };
+type V5 = { archetype_counts:Record<string,number>; effects:Effect[]; hypotheses_tested:number; eligible_hypotheses:number; boosts:number; drags:number; fixed_effect_rules:{min_group_trades:number;delta_avg_r:number;delta_win_rate_pp:number}; archetype_rules:Record<string,string> };
+type Result = { setup_trades:number; eligible_setup_trades:number; matched_trades:number; match_rate_pct:number; overall:{trades:number;avg_r:number;win_rate:number;total_r:number}; v5_archetype_context:V5 };
+type Block = { id:string; start:string; end:string };
+type ReplicatedEffect = { label:string; state:'BOOST'|'DRAG'; blocks:string; trades:number; avgR:number };
+
+const BLOCKS: Block[] = [
+  { id:'S-0A', start:'2026-05-25', end:'2026-06-05' },
+  { id:'S-0B', start:'2026-06-08', end:'2026-06-19' },
+  { id:'S-0C', start:'2026-06-22', end:'2026-07-03' },
+  { id:'S-1', start:'2026-07-06', end:'2026-07-17' },
+  { id:'S-2', start:'2026-07-20', end:'2026-07-31' },
+  { id:'S-3', start:'2026-08-03', end:'2026-08-10' },
 ];
-const REQUIRED_REPLICATION_BLOCKS=3;
-async function runBlock(b:Block):Promise<Result>{const r=await fetch(`${ALPHAPILOT_API_BASE}/v1/research/market-brain-v4-setup-expectancy`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_date:b.start,end_date:b.end})});if(!r.ok){let d='';try{const x=await r.json();d=x?.detail?`: ${x.detail}`:''}catch{}throw new Error(`${b.id} API ${r.status}${d}`)}return r.json()}
-function fmtR(v:number){return `${v>=0?'+':''}${Number(v||0).toFixed(3)}R`}
-export function MarketBrainArchetypeContextResearch(){
-  const[running,setRunning]=useState(false),[progress,setProgress]=useState(''),[results,setResults]=useState<Record<string,Result>>({}),[error,setError]=useState<string|null>(null);
-  const replicated=useMemo(()=>{const m=new Map<string,{state:'BOOST'|'DRAG';blocks:string[];opposite:string[];trades:number;weighted:number}>();for(const b of BLOCKS){const v=results[b.id]?.v5_archetype_context;if(!v)continue;for(const e of v.effects){if(e.state!=='BOOST'&&e.state!=='DRAG')continue;const current=m.get(e.label);if(!current){m.set(e.label,{state:e.state,blocks:[b.id],opposite:[],trades:e.trades,weighted:e.avg_r*e.trades});continue}if(current.state===e.state){current.blocks.push(b.id);current.trades+=e.trades;current.weighted+=e.avg_r*e.trades}else current.opposite.push(b.id)}}return[...m.entries()].filter(([,g])=>g.blocks.length>=REQUIRED_REPLICATION_BLOCKS&&g.opposite.length===0).map(([label,g])=>({label,state:g.state,blocks:g.blocks.join(', '),trades:g.trades,avgR:g.trades?g.weighted/g.trades:0})).sort((a,b)=>b.trades-a.trades)},[results]);
-  async function run(){setRunning(true);setError(null);setResults({});try{for(const b of BLOCKS){setProgress(`Running ${b.id} · ${b.start} → ${b.end}`);const r=await runBlock(b);if(!r.v5_archetype_context)throw new Error(`${b.id} backend has not deployed Market Brain v5 yet.`);setResults(x=>({...x,[b.id]:r}));await new Promise(res=>setTimeout(res,700))}}catch(e){setError(e instanceof Error?e.message:'Market Brain v5 failed.')}finally{setProgress('');setRunning(false)}}
-  const completed=Object.keys(results).length,totalMatched=Object.values(results).reduce((a,x)=>a+x.matched_trades,0),tested=Object.values(results).reduce((a,x)=>a+(x.v5_archetype_context?.hypotheses_tested||0),0),eligible=Object.values(results).reduce((a,x)=>a+(x.v5_archetype_context?.eligible_hypotheses||0),0);
-  return <Card><CardHeader title="Market Brain v5 — Setup-Archetype × Context Replication" subtitle="Tests whether frozen Market Brain context matters only for specific historical scanner setup archetypes." action={<Layers3 size={18} className="text-violet-500"/>}/><CardBody className="space-y-4">
-    <div className="flex gap-2 flex-wrap"><Badge variant="blue">MARKET BRAIN v5</Badge><Badge variant="default">6 FIXED BLOCKS</Badge><Badge variant="default">ARCHETYPE × CONTEXT</Badge><Badge variant="default">SAME-DIRECTION + SAME-ARCHETYPE BASELINE</Badge><Badge variant="default">3-BLOCK REPLICATION</Badge><Badge variant="default">NO RETUNING</Badge><Badge variant="default">RESEARCH ONLY</Badge><Badge variant="default">PRODUCTION UNCHANGED</Badge></div>
-    <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-500">Frozen archetypes: HIGH_ALPHA ≥75 vs STANDARD_ALPHA; HIGH_RR ≥2.0 vs STANDARD_RR; EARLY_SETUP through 11:30 IST vs LATE_SETUP. BOOST/DRAG requires ≥10 trades, ±0.20R versus the same-direction/same-archetype baseline and ±8pp win-rate difference. Replication requires the exact same effect in ≥3 blocks with no opposite qualifying block.</p><Button variant="primary" onClick={run} disabled={running}><Play size={14} className="inline mr-1"/>{running?'Running v5…':'Run Market Brain v5'}</Button></div>
-    {progress&&<div className="rounded-lg border p-3 text-xs">{progress}</div>}{error&&<div className="rounded-lg border border-red-200 p-3 text-sm text-red-600">{error}</div>}
-    <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="p-2 text-left">Block</th><th>Dates</th><th>Setups</th><th>Eligible</th><th>Matched</th><th>Match</th><th>Avg R</th><th>Win</th><th>Hypotheses</th><th>Eligible H</th><th>Boosts</th><th>Drags</th><th>Status</th></tr></thead><tbody>{BLOCKS.map(b=>{const r=results[b.id],v=r?.v5_archetype_context;return <tr key={b.id} className="border-t"><td className="p-2 font-semibold">{b.id}</td><td>{b.start} → {b.end}</td><td className="text-center">{r?.setup_trades??'—'}</td><td className="text-center">{r?.eligible_setup_trades??'—'}</td><td className="text-center">{r?.matched_trades??'—'}</td><td className="text-center">{r?.match_rate_pct!=null?`${r.match_rate_pct.toFixed(1)}%`:'—'}</td><td className="text-center">{r?fmtR(r.overall.avg_r):'—'}</td><td className="text-center">{r?`${r.overall.win_rate.toFixed(1)}%`:'—'}</td><td className="text-center">{v?.hypotheses_tested??'—'}</td><td className="text-center">{v?.eligible_hypotheses??'—'}</td><td className="text-center">{v?.boosts??'—'}</td><td className="text-center">{v?.drags??'—'}</td><td className="text-center"><Badge variant={r?'green':'default'}>{r?'COMPLETE':'PENDING'}</Badge></td></tr>})}</tbody></table></div>
-    {completed>0&&<div className="grid grid-cols-2 md:grid-cols-6 gap-3"><Stat label="Completed blocks" value={`${completed}/${BLOCKS.length}`}/><Stat label="Matched setups" value={String(totalMatched)}/><Stat label="Hypotheses tested" value={String(tested)}/><Stat label="Eligible hypotheses" value={String(eligible)}/><Stat label="Replicated effects" value={String(replicated.length)}/><div className="rounded-lg border p-3"><p className="text-xs text-slate-500">Decision</p><Badge variant={replicated.length?'blue':'default'}>{completed<BLOCKS.length?'INCOMPLETE':replicated.length?'REPLICATED_ARCHETYPE_CONTEXT_CANDIDATE':'NO_REPLICATED_ARCHETYPE_CONTEXT_EFFECT'}</Badge></div></div>}
-    {replicated.length>0&&<div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Replicated archetype-context effect</th><th>Effect</th><th>Blocks</th><th>Trades</th><th>Weighted Avg R</th></tr></thead><tbody>{replicated.map((x,i)=><tr key={i} className="border-t"><td className="p-2 font-medium">{x.label}</td><td className="text-center"><Badge variant={x.state==='BOOST'?'green':'red'}>{x.state}</Badge></td><td className="text-center">{x.blocks}</td><td className="text-center">{x.trades}</td><td className="text-center font-semibold">{fmtR(x.avgR)}</td></tr>)}</tbody></table></div>}
-    {completed>0&&<div className="space-y-2"><p className="text-sm font-semibold">Top block effects</p>{BLOCKS.map(b=>{const v=results[b.id]?.v5_archetype_context;if(!v)return null;const rows=v.effects.filter(e=>e.state==='BOOST'||e.state==='DRAG').slice(0,8);return <div key={b.id}><p className="text-xs font-semibold mb-1">{b.id}</p>{rows.length?<div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Archetype × Context</th><th>Trades</th><th>Baseline N</th><th>Avg R</th><th>Δ Avg R</th><th>Win</th><th>Δ Win</th><th>Effect</th></tr></thead><tbody>{rows.map((e,i)=><tr key={i} className="border-t"><td className="p-2 font-medium">{e.label}</td><td className="text-center">{e.trades}</td><td className="text-center">{e.baseline_trades}</td><td className="text-center">{fmtR(e.avg_r)}</td><td className="text-center">{fmtR(e.delta_avg_r)}</td><td className="text-center">{e.win_rate.toFixed(1)}%</td><td className="text-center">{e.delta_win_rate_pp>=0?'+':''}{e.delta_win_rate_pp.toFixed(1)}pp</td><td className="text-center"><Badge variant={e.state==='BOOST'?'green':'red'}>{e.state}</Badge></td></tr>)}</tbody></table></div>:<p className="text-xs text-slate-500">No fixed BOOST/DRAG archetype-context effect in this block.</p>}</div>})}</div>}
-    {completed>0&&<div><p className="text-sm font-semibold mb-2">Archetype coverage diagnostics</p><div className="grid grid-cols-1 md:grid-cols-3 gap-3">{Object.entries(results[BLOCKS.find(b=>results[b.id])?.id||'']?.v5_archetype_context?.archetype_rules||{}).map(([k,v])=><div className="rounded-lg border p-3" key={k}><p className="text-xs font-semibold">{k}</p><p className="text-[11px] text-slate-500 mt-1">{v}</p></div>)}</div></div>}
-    <p className="text-[11px] text-slate-500">v5 uses only information available at setup time and compares each context state against the same-direction, same-archetype baseline. The search space is reported explicitly through Hypotheses tested and Eligible hypotheses. Even a replicated result is only a frozen research candidate for untouched validation; it cannot alter production trading rules.</p>
-  </CardBody></Card>
+const BLOCK_IDS = BLOCKS.map(block => block.id);
+const REQUIRED_REPLICATION_BLOCKS = 3;
+
+function isResult(value: unknown): value is Result {
+  if (!value || typeof value !== 'object') return false;
+  const result = value as Partial<Result>;
+  return Number.isFinite(result.matched_trades)
+    && Boolean(result.overall)
+    && Array.isArray(result.v5_archetype_context?.effects);
 }
-function Stat({label,value}:{label:string;value:string}){return <div className="rounded-lg border p-3"><p className="text-xs text-slate-500">{label}</p><p className="text-lg font-bold">{value}</p></div>}
+
+async function runBlock(block: Block): Promise<Result> {
+  const response = await fetch(`${ALPHAPILOT_API_BASE}/v1/research/market-brain-v4-setup-expectancy`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({ start_date:block.start, end_date:block.end }),
+  });
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const payload = await response.json();
+      detail = payload?.detail ? `: ${payload.detail}` : '';
+    } catch {
+      // ignore malformed upstream error bodies
+    }
+    throw new Error(`${block.id} API ${response.status}${detail}`);
+  }
+  return response.json();
+}
+
+function replicatedEffects(results: Record<string, Result>): ReplicatedEffect[] {
+  const groups = new Map<string, { state:'BOOST'|'DRAG'; blocks:string[]; opposite:string[]; trades:number; weighted:number }>();
+  for (const block of BLOCKS) {
+    const v5 = results[block.id]?.v5_archetype_context;
+    if (!v5) continue;
+    for (const effect of v5.effects) {
+      if (effect.state !== 'BOOST' && effect.state !== 'DRAG') continue;
+      const current = groups.get(effect.label);
+      if (!current) {
+        groups.set(effect.label, { state:effect.state, blocks:[block.id], opposite:[], trades:effect.trades, weighted:effect.avg_r * effect.trades });
+      } else if (current.state === effect.state) {
+        current.blocks.push(block.id);
+        current.trades += effect.trades;
+        current.weighted += effect.avg_r * effect.trades;
+      } else {
+        current.opposite.push(block.id);
+      }
+    }
+  }
+  return [...groups.entries()]
+    .filter(([, group]) => group.blocks.length >= REQUIRED_REPLICATION_BLOCKS && group.opposite.length === 0)
+    .map(([label, group]) => ({ label, state:group.state, blocks:group.blocks.join(', '), trades:group.trades, avgR:group.trades ? group.weighted / group.trades : 0 }))
+    .sort((a, b) => b.trades - a.trades);
+}
+
+function resultMap(ledger: MarketBrainV5Ledger<Result>): Record<string, Result> {
+  return Object.fromEntries(Object.entries(ledger.blocks).map(([id, record]) => [id, record.result]));
+}
+
+function decision(results: Record<string, Result>, replicated: ReplicatedEffect[]): MarketBrainV5Decision {
+  if (Object.keys(results).length < BLOCKS.length) return 'INCOMPLETE';
+  return replicated.length ? 'REPLICATED_ARCHETYPE_CONTEXT_CANDIDATE' : 'NO_REPLICATED_ARCHETYPE_CONTEXT_EFFECT';
+}
+
+function fmtR(value: number) {
+  return `${value >= 0 ? '+' : ''}${Number(value || 0).toFixed(3)}R`;
+}
+
+export function MarketBrainArchetypeContextResearch() {
+  const [ledger, setLedger] = useState<MarketBrainV5Ledger<Result>>(() => readMarketBrainV5Ledger(BLOCK_IDS, isResult));
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [error, setError] = useState<string | null>(ledger.last_error);
+  const results = useMemo(() => resultMap(ledger), [ledger]);
+  const replicated = useMemo(() => replicatedEffects(results), [results]);
+
+  async function run() {
+    if (running || Object.keys(results).length === BLOCKS.length) return;
+    setRunning(true);
+    setError(null);
+    let working = { ...ledger, last_error:null, updated_at:new Date().toISOString() };
+    saveMarketBrainV5Ledger(working);
+    try {
+      for (const block of BLOCKS) {
+        if (working.blocks[block.id]) continue;
+        setProgress(`Running ${block.id} · ${block.start} → ${block.end}`);
+        const result = await runBlock(block);
+        if (!result.v5_archetype_context) throw new Error(`${block.id} backend has not deployed Market Brain v5 yet.`);
+        const completedAt = new Date().toISOString();
+        working = {
+          ...working,
+          updated_at: completedAt,
+          blocks: {
+            ...working.blocks,
+            [block.id]: { block_id:block.id, start_date:block.start, end_date:block.end, completed_at:completedAt, result },
+          },
+        };
+        setLedger(working);
+        saveMarketBrainV5Ledger(working);
+        await new Promise(resolve => setTimeout(resolve, 700));
+      }
+      const finishedResults = resultMap(working);
+      const finalDecision = decision(finishedResults, replicatedEffects(finishedResults));
+      const completedAt = new Date().toISOString();
+      working = { ...working, updated_at:completedAt, completed_at:completedAt, decision:finalDecision, last_error:null };
+      setLedger(working);
+      saveMarketBrainV5Ledger(working);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Market Brain v5 failed.';
+      const failed = { ...working, updated_at:new Date().toISOString(), last_error:message };
+      setError(message);
+      setLedger(failed);
+      saveMarketBrainV5Ledger(failed);
+    } finally {
+      setProgress('');
+      setRunning(false);
+    }
+  }
+
+  function reset() {
+    if (running) return;
+    clearMarketBrainV5Ledger();
+    const fresh = newMarketBrainV5Ledger<Result>(BLOCK_IDS);
+    setLedger(fresh);
+    setError(null);
+    setProgress('');
+  }
+
+  const completed = Object.keys(results).length;
+  const totalMatched = Object.values(results).reduce((sum, result) => sum + result.matched_trades, 0);
+  const tested = Object.values(results).reduce((sum, result) => sum + (result.v5_archetype_context?.hypotheses_tested || 0), 0);
+  const eligible = Object.values(results).reduce((sum, result) => sum + (result.v5_archetype_context?.eligible_hypotheses || 0), 0);
+  const currentDecision = decision(results, replicated);
+  const runLabel = running ? 'Running v5…' : completed ? `Resume v5 · ${completed}/${BLOCKS.length}` : 'Run Market Brain v5';
+
+  return <Card><CardHeader title="Market Brain v5 — Setup-Archetype × Context Replication" subtitle="Resumable six-block research with a browser-local experiment ledger. Production rules remain unchanged." action={<Layers3 size={18} className="text-violet-500"/>}/><CardBody className="space-y-4">
+    <div className="flex gap-2 flex-wrap"><Badge variant="blue">MARKET BRAIN v5</Badge><Badge variant="default">6 FIXED BLOCKS</Badge><Badge variant="default">ARCHETYPE × CONTEXT</Badge><Badge variant="default">3-BLOCK REPLICATION</Badge><Badge variant="default">RESUMABLE CHECKPOINTS</Badge><Badge variant="default">EXPERIMENT LEDGER</Badge><Badge variant="default">NO RETUNING</Badge><Badge variant="default">PRODUCTION UNCHANGED</Badge></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500 max-w-4xl">Frozen archetypes: HIGH_ALPHA ≥75 vs STANDARD_ALPHA; HIGH_RR ≥2.0 vs STANDARD_RR; EARLY_SETUP through 11:30 IST vs LATE_SETUP. Each completed block is saved immediately. Resume skips saved blocks and continues from the first unfinished block.</p><div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => void run()} disabled={running || completed === BLOCKS.length}><Play size={14} className="inline mr-1"/>{completed === BLOCKS.length ? 'v5 Complete' : runLabel}</Button><Button variant="default" onClick={() => exportMarketBrainV5Ledger(ledger)} disabled={!completed}><Download size={14} className="inline mr-1"/>Export Ledger</Button><Button variant="default" onClick={reset} disabled={running || !completed}><RotateCcw size={14} className="inline mr-1"/>Reset Run</Button></div></div>
+    <div className="rounded-lg border p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><span><strong>Checkpoint:</strong> {completed}/{BLOCKS.length} blocks saved</span><Badge variant={completed === BLOCKS.length ? 'green' : completed ? 'blue' : 'default'}>{completed === BLOCKS.length ? 'COMPLETE' : completed ? 'RESUMABLE' : 'NOT STARTED'}</Badge></div><p className="text-[11px] text-slate-500 mt-1">Protocol {ledger.protocol_revision} · created {new Date(ledger.created_at).toLocaleString('en-IN')} · updated {new Date(ledger.updated_at).toLocaleString('en-IN')}</p></div>
+    {progress && <div className="rounded-lg border p-3 text-xs">{progress}</div>}{error && <div className="rounded-lg border border-red-200 p-3 text-sm text-red-600">{error} Completed blocks remain saved; press Resume after the API is available.</div>}
+    <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="p-2 text-left">Block</th><th>Dates</th><th>Setups</th><th>Eligible</th><th>Matched</th><th>Match</th><th>Avg R</th><th>Win</th><th>Hypotheses</th><th>Eligible H</th><th>Boosts</th><th>Drags</th><th>Status</th></tr></thead><tbody>{BLOCKS.map(block => { const result = results[block.id], v5 = result?.v5_archetype_context; return <tr key={block.id} className="border-t"><td className="p-2 font-semibold">{block.id}</td><td>{block.start} → {block.end}</td><td className="text-center">{result?.setup_trades ?? '—'}</td><td className="text-center">{result?.eligible_setup_trades ?? '—'}</td><td className="text-center">{result?.matched_trades ?? '—'}</td><td className="text-center">{result?.match_rate_pct != null ? `${result.match_rate_pct.toFixed(1)}%` : '—'}</td><td className="text-center">{result ? fmtR(result.overall.avg_r) : '—'}</td><td className="text-center">{result ? `${result.overall.win_rate.toFixed(1)}%` : '—'}</td><td className="text-center">{v5?.hypotheses_tested ?? '—'}</td><td className="text-center">{v5?.eligible_hypotheses ?? '—'}</td><td className="text-center">{v5?.boosts ?? '—'}</td><td className="text-center">{v5?.drags ?? '—'}</td><td className="text-center"><Badge variant={result ? 'green' : 'default'}>{result ? 'SAVED' : 'PENDING'}</Badge></td></tr> })}</tbody></table></div>
+    {completed > 0 && <div className="grid grid-cols-2 md:grid-cols-6 gap-3"><Stat label="Completed blocks" value={`${completed}/${BLOCKS.length}`}/><Stat label="Matched setups" value={String(totalMatched)}/><Stat label="Hypotheses tested" value={String(tested)}/><Stat label="Eligible hypotheses" value={String(eligible)}/><Stat label="Replicated effects" value={String(replicated.length)}/><div className="rounded-lg border p-3"><p className="text-xs text-slate-500">Decision</p><Badge variant={replicated.length ? 'blue' : 'default'}>{currentDecision}</Badge></div></div>}
+    {replicated.length > 0 && <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Replicated archetype-context effect</th><th>Effect</th><th>Blocks</th><th>Trades</th><th>Weighted Avg R</th></tr></thead><tbody>{replicated.map((effect, index) => <tr key={index} className="border-t"><td className="p-2 font-medium">{effect.label}</td><td className="text-center"><Badge variant={effect.state === 'BOOST' ? 'green' : 'red'}>{effect.state}</Badge></td><td className="text-center">{effect.blocks}</td><td className="text-center">{effect.trades}</td><td className="text-center font-semibold">{fmtR(effect.avgR)}</td></tr>)}</tbody></table></div>}
+    {completed > 0 && <div className="space-y-2"><p className="text-sm font-semibold">Top block effects</p>{BLOCKS.map(block => { const v5 = results[block.id]?.v5_archetype_context; if (!v5) return null; const rows = v5.effects.filter(effect => effect.state === 'BOOST' || effect.state === 'DRAG').slice(0, 8); return <div key={block.id}><p className="text-xs font-semibold mb-1">{block.id}</p>{rows.length ? <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Archetype × Context</th><th>Trades</th><th>Baseline N</th><th>Avg R</th><th>Δ Avg R</th><th>Win</th><th>Δ Win</th><th>Effect</th></tr></thead><tbody>{rows.map((effect, index) => <tr key={index} className="border-t"><td className="p-2 font-medium">{effect.label}</td><td className="text-center">{effect.trades}</td><td className="text-center">{effect.baseline_trades}</td><td className="text-center">{fmtR(effect.avg_r)}</td><td className="text-center">{fmtR(effect.delta_avg_r)}</td><td className="text-center">{effect.win_rate.toFixed(1)}%</td><td className="text-center">{effect.delta_win_rate_pp >= 0 ? '+' : ''}{effect.delta_win_rate_pp.toFixed(1)}pp</td><td className="text-center"><Badge variant={effect.state === 'BOOST' ? 'green' : 'red'}>{effect.state}</Badge></td></tr>)}</tbody></table></div> : <p className="text-xs text-slate-500">No fixed BOOST/DRAG archetype-context effect in this block.</p>}</div> })}</div>}
+    {completed > 0 && <div><p className="text-sm font-semibold mb-2">Archetype coverage diagnostics</p><div className="grid grid-cols-1 md:grid-cols-3 gap-3">{Object.entries(results[BLOCKS.find(block => results[block.id])?.id || '']?.v5_archetype_context?.archetype_rules || {}).map(([key, value]) => <div className="rounded-lg border p-3" key={key}><p className="text-xs font-semibold">{key}</p><p className="text-[11px] text-slate-500 mt-1">{value}</p></div>)}</div></div>}
+    <p className="text-[11px] text-slate-500">The ledger is browser-local and survives refreshes on this device. Export it after completion for a portable evidence file. Even a replicated result remains only a frozen research candidate for untouched validation; it cannot alter production trading rules.</p>
+  </CardBody></Card>;
+}
+
+function Stat({ label, value }: { label:string; value:string }) {
+  return <div className="rounded-lg border p-3"><p className="text-xs text-slate-500">{label}</p><p className="text-lg font-bold">{value}</p></div>;
+}
