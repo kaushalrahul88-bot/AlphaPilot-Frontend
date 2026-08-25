@@ -50,6 +50,9 @@ function validHealth(value: unknown): value is SessionHealthSnapshot {
   return typeof row.captured_at === 'string'
     && typeof row.symbol === 'string'
     && typeof row.expiry === 'string'
+    && typeof row.strike === 'number'
+    && Number.isFinite(row.strike)
+    && (row.option_type === 'CE' || row.option_type === 'PE')
     && Boolean(row.checks)
     && typeof row.checks?.api === 'boolean'
     && typeof row.checks?.quote === 'boolean'
@@ -127,6 +130,8 @@ export function appendSessionHealthSnapshot(snapshot: SessionHealthSnapshot) {
   const duplicate = existing.some(row =>
     row.symbol === snapshot.symbol
     && row.expiry === snapshot.expiry
+    && row.strike === snapshot.strike
+    && row.option_type === snapshot.option_type
     && sessionDateIst(row.captured_at) === sessionDateIst(snapshot.captured_at)
     && sessionPhase(row.captured_at) === sessionPhase(snapshot.captured_at)
   );
@@ -184,6 +189,8 @@ export function buildPaperSessionRequest(
         trade_id: row.trade_id,
         symbol: row.symbol,
         expiry: row.expiry,
+        strike: row.strike,
+        option_type: row.option_type,
         status: row.status,
         paper_only: true,
         live_execution_enabled: false,
