@@ -15,7 +15,7 @@ export type MarketBrainV7BlockRecord<T> = {
   result: T;
 };
 
-export type MarketBrainV7Ledger<T, E> = {
+export type MarketBrainV7Ledger<T, E extends { decision: MarketBrainV7Decision }> = {
   schema_version: 1;
   experiment_id: 'MARKET_BRAIN_V7_CONTINUOUS_REGIME_QUALITY';
   protocol_revision: 'v7-frozen-2026-08-25';
@@ -33,7 +33,7 @@ function available() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
 }
 
-export function newMarketBrainV7Ledger<T, E>(blockOrder: string[]): MarketBrainV7Ledger<T, E> {
+export function newMarketBrainV7Ledger<T, E extends { decision: MarketBrainV7Decision }>(blockOrder: string[]): MarketBrainV7Ledger<T, E> {
   const now = new Date().toISOString();
   return {
     schema_version: 1,
@@ -50,7 +50,7 @@ export function newMarketBrainV7Ledger<T, E>(blockOrder: string[]): MarketBrainV
   };
 }
 
-export function readMarketBrainV7Ledger<T, E>(
+export function readMarketBrainV7Ledger<T, E extends { decision: MarketBrainV7Decision }>(
   blockOrder: string[],
   validBlock: (value: unknown) => value is T,
   validEvaluation: (value: unknown) => value is E,
@@ -89,7 +89,7 @@ export function readMarketBrainV7Ledger<T, E>(
   }
 }
 
-export function saveMarketBrainV7Ledger<T, E>(ledger: MarketBrainV7Ledger<T, E>) {
+export function saveMarketBrainV7Ledger<T, E extends { decision: MarketBrainV7Decision }>(ledger: MarketBrainV7Ledger<T, E>) {
   if (!available()) return;
   try {
     window.localStorage.setItem(MARKET_BRAIN_V7_LEDGER_KEY, JSON.stringify(ledger));
@@ -107,7 +107,7 @@ export function clearMarketBrainV7Ledger() {
   }
 }
 
-export function exportMarketBrainV7Ledger<T, E>(ledger: MarketBrainV7Ledger<T, E>) {
+export function exportMarketBrainV7Ledger<T, E extends { decision: MarketBrainV7Decision }>(ledger: MarketBrainV7Ledger<T, E>) {
   if (typeof document === 'undefined') return;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const blob = new Blob(
