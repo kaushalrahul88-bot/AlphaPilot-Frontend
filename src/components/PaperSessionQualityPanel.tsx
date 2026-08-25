@@ -36,6 +36,7 @@ export function PaperSessionQualityPanel() {
   const evidence = useMemo(() => todaySessionEvidence(trades), [trades, attestations]);
   const cleanSessions = cleanPaperSessionCount(attestations);
   const todayAttestation = attestations.find(row => row.session_date === evidence.session_date) ?? null;
+  const todayHasFinalEvaluation = todayAttestation ? afterSessionClose(new Date(todayAttestation.evaluated_at)) : false;
 
   const reload = useCallback(() => {
     setTrades(readPaperTrades());
@@ -68,7 +69,7 @@ export function PaperSessionQualityPanel() {
         afterSessionClose()
         && evidence.trades.length > 0
         && attemptedRef.current !== evidence.session_date
-        && !todayAttestation
+        && !todayHasFinalEvaluation
       ) {
         attemptedRef.current = evidence.session_date;
         void evaluate();
@@ -80,7 +81,7 @@ export function PaperSessionQualityPanel() {
       window.removeEventListener('storage', onUpdate);
       window.clearInterval(timer);
     };
-  }, [evidence.session_date, evidence.trades.length, evaluate, reload, todayAttestation]);
+  }, [evidence.session_date, evidence.trades.length, evaluate, reload, todayHasFinalEvaluation]);
 
   return <Card>
     <CardHeader
