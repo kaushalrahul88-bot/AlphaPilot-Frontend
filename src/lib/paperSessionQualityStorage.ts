@@ -44,7 +44,7 @@ function saveArray(key: string, values: unknown[]) {
   }
 }
 
-function validHealth(value: unknown): value is SessionHealthSnapshot {
+export function isSessionHealthSnapshot(value: unknown): value is SessionHealthSnapshot {
   if (!value || typeof value !== 'object') return false;
   const row = value as Partial<SessionHealthSnapshot>;
   return typeof row.captured_at === 'string'
@@ -60,7 +60,7 @@ function validHealth(value: unknown): value is SessionHealthSnapshot {
     && typeof row.checks?.options === 'boolean';
 }
 
-function validIncident(value: unknown): value is SessionDataIncident {
+export function isSessionDataIncident(value: unknown): value is SessionDataIncident {
   if (!value || typeof value !== 'object') return false;
   const row = value as Partial<SessionDataIncident>;
   return typeof row.captured_at === 'string'
@@ -68,7 +68,7 @@ function validIncident(value: unknown): value is SessionDataIncident {
     && typeof row.code === 'string';
 }
 
-function validAttestation(value: unknown): value is PaperSessionAttestation {
+export function isPaperSessionAttestation(value: unknown): value is PaperSessionAttestation {
   if (!value || typeof value !== 'object') return false;
   const row = value as Partial<PaperSessionAttestation>;
   return row.schema_version === 1
@@ -122,7 +122,7 @@ export function afterSessionClose(value = new Date()) {
 }
 
 export function readSessionHealthSnapshots() {
-  return readArray(HEALTH_KEY).filter(validHealth).slice(0, MAX_HEALTH);
+  return readArray(HEALTH_KEY).filter(isSessionHealthSnapshot).slice(0, MAX_HEALTH);
 }
 
 export function appendSessionHealthSnapshot(snapshot: SessionHealthSnapshot) {
@@ -140,7 +140,7 @@ export function appendSessionHealthSnapshot(snapshot: SessionHealthSnapshot) {
 }
 
 export function readSessionDataIncidents() {
-  return readArray(INCIDENT_KEY).filter(validIncident).slice(0, MAX_INCIDENTS);
+  return readArray(INCIDENT_KEY).filter(isSessionDataIncident).slice(0, MAX_INCIDENTS);
 }
 
 export function appendSessionDataIncident(incident: SessionDataIncident) {
@@ -155,7 +155,7 @@ export function appendSessionDataIncident(incident: SessionDataIncident) {
 }
 
 export function readPaperSessionAttestations() {
-  return readArray(ATTESTATION_KEY).filter(validAttestation).slice(0, MAX_ATTESTATIONS);
+  return readArray(ATTESTATION_KEY).filter(isPaperSessionAttestation).slice(0, MAX_ATTESTATIONS);
 }
 
 export function savePaperSessionAttestation(attestation: PaperSessionAttestation) {

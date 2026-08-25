@@ -1,5 +1,6 @@
 import { readValidationRecords } from '@/lib/liveValidation';
 import { readDataQualityRecords } from '@/lib/dataQuality';
+import { exportEvidenceBackupJson } from '@/lib/evidenceBackup';
 
 function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
@@ -49,12 +50,6 @@ export function exportDataQualityCsv() {
   download(`alphapilot-data-quality-${stamp()}.csv`, toCsv(records), 'text/csv;charset=utf-8');
 }
 
-export function exportFullBackupJson() {
-  const payload = {
-    exported_at: new Date().toISOString(),
-    schema: 'alphapilot-backup-v1',
-    live_validation: readValidationRecords(),
-    data_quality: readDataQualityRecords(),
-  };
-  download(`alphapilot-backup-${stamp()}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+export async function exportFullBackupJson() {
+  return exportEvidenceBackupJson();
 }

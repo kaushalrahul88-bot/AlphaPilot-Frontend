@@ -17,11 +17,23 @@ export type DataQualityRecord = {
   details?: string[];
 };
 
+export function isDataQualityRecord(value: unknown): value is DataQualityRecord {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Partial<DataQualityRecord>;
+  return typeof row.id === 'string'
+    && typeof row.captured_at === 'string'
+    && (row.kind === 'API_ERROR' || row.kind === 'MTF_SYMBOL_ERROR' || row.kind === 'FNO_MISSING_FIELD' || row.kind === 'FNO_BLOCKED')
+    && (row.severity === 'INFO' || row.severity === 'WARN' || row.severity === 'ERROR')
+    && typeof row.message === 'string'
+    && (row.details === undefined || (Array.isArray(row.details) && row.details.every(detail => typeof detail === 'string')));
+}
+
 export function readDataQualityRecords(): DataQualityRecord[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(DATA_QUALITY_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(isDataQualityRecord) : [];
   } catch { return []; }
 }
 

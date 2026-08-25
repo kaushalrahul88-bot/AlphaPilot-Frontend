@@ -31,7 +31,7 @@ function available() {
   }
 }
 
-function validTrade(value: unknown): value is PaperTrade {
+export function isPaperTrade(value: unknown): value is PaperTrade {
   if (!value || typeof value !== 'object') return false;
   const trade = value as Partial<PaperTrade>;
   return trade.schema_version === 1
@@ -58,7 +58,7 @@ export function readPaperTrades(): PaperTrade[] {
   try {
     const raw = window.localStorage.getItem(PAPER_TRADE_LIFECYCLE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter(validTrade).slice(0, MAX_RECORDS) : [];
+    return Array.isArray(parsed) ? parsed.filter(isPaperTrade).slice(0, MAX_RECORDS) : [];
   } catch {
     return [];
   }
