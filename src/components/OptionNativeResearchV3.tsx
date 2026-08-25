@@ -5,7 +5,7 @@ import { runOptionNativeResearch, type OptionNativeResearchResponse } from '@/li
 
 function offset(days:number){const d=new Date();d.setDate(d.getDate()-days);return d.toISOString().slice(0,10)}
 function fmt(v:unknown,d=2){const n=Number(v);return Number.isFinite(n)?n.toFixed(d):'—'}
-function strategyName(v:unknown){const s=String(v??'—');return s==='VWAP_TREND'?'VWAP Trend':s==='ORB_30'?'ORB 30':s==='BREAKOUT_20'?'20-Bar Breakout':s}
+function strategyName(v:unknown){const s=String(v??'—');return s==='VWAP_TREND'?'VWAP Trend':s==='ORB_30'?'ORB 30':s==='BREAKOUT_20'?'20-Bar Breakout':s==='PRICE_ACTION_BREAKOUT'?'Price Action Breakout':s}
 
 export function OptionNativeResearchV3(){
   const [symbolsText,setSymbolsText]=useState('RELIANCE,SBIN,AXISBANK,HDFCBANK,ICICIBANK,TATASTEEL,HINDALCO,ONGC,INFY,TCS');
@@ -28,7 +28,7 @@ export function OptionNativeResearchV3(){
     }catch(e){setError(e instanceof Error?e.message:'Option-native research failed.')}finally{setRunning(false)}
   }
 
-  return <Card><CardHeader title="Strategy Research v3 — Option-Premium Discovery" subtitle="Research-only stress test: frozen strategy signals compete on actual historical CE/PE premium outcomes, including a configurable trading-cost stress." action={<FlaskConical size={18} className="text-fuchsia-500"/>}/><CardBody className="space-y-4">
+  return <Card><CardHeader title="Strategy Research v4 — Book-Informed Option-Premium Discovery" subtitle="Research-only stress test: legacy strategies and the new price-action breakout hypothesis compete on actual historical CE/PE premium outcomes after cost stress." action={<FlaskConical size={18} className="text-fuchsia-500"/>}/><CardBody className="space-y-4">
     <div className="flex flex-wrap items-center gap-2"><Badge variant="blue">RESEARCH ONLY</Badge><Badge variant="default">PRODUCTION UNCHANGED</Badge></div>
     <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
       <Input label="Symbols" value={symbolsText} onChange={setSymbolsText}/>
@@ -38,8 +38,8 @@ export function OptionNativeResearchV3(){
       <Input label="Max trades / strategy" type="number" value={maxTrades} onChange={setMaxTrades}/>
       <Input label="Round-trip cost (bps)" type="number" value={costBps} onChange={setCostBps}/>
     </div>
-    <div className="flex justify-end"><Button variant="primary" onClick={run} disabled={running||!symbols.length}><Play size={14} className="inline mr-1"/>{running?'Running option-premium research…':'Run Strategy Research v3'}</Button></div>
-    <p className="text-[11px] text-slate-500">This first v3 layer does not invent new winning rules. It compares the frozen v2 strategies after true option-premium replay and applies the same cost stress to all of them. PASS/WATCH/FAIL is research classification only.</p>
+    <div className="flex justify-end"><Button variant="primary" onClick={run} disabled={running||!symbols.length}><Play size={14} className="inline mr-1"/>{running?'Running option-premium research…':'Run Strategy Research v4'}</Button></div>
+    <p className="text-[11px] text-slate-500">V4 adds the book-informed PRICE_ACTION_BREAKOUT as an isolated hypothesis while keeping the three legacy rules frozen. All four are replayed on true option premiums with the same cost stress. PASS/WATCH/FAIL remains a research classification only.</p>
     {error&&<div className="rounded-lg border border-red-200 p-3 text-sm text-red-600">{error}</div>}
     {result&&<>
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="p-2 text-left">Rank</th><th className="text-left">Strategy</th><th>Trades</th><th>Win %</th><th>Raw Avg R</th><th>Cost Adj Avg R</th><th>Cost Adj Total R</th><th>Max DD</th><th>Status</th></tr></thead><tbody>{(result.leaderboard??[]).map((row,i)=>{const raw=row.raw_summary??{},s=row.cost_adjusted_summary??{};const status=String(s.classification??'FAIL');return <tr key={`${String(row.strategy)}-${i}`} className="border-t border-slate-200 dark:border-slate-800"><td className="p-2 font-semibold">#{row.rank??i+1}</td><td className="font-semibold">{strategyName(row.strategy)}</td><td className="text-center">{String(s.trades??0)}</td><td className="text-center">{fmt(s.win_rate,1)}%</td><td className={`text-center font-semibold ${Number(raw.average_r)>0?'text-emerald-600':Number(raw.average_r)<0?'text-red-600':''}`}>{Number(raw.average_r)>0?'+':''}{fmt(raw.average_r)}R</td><td className={`text-center font-semibold ${Number(s.average_r)>0?'text-emerald-600':Number(s.average_r)<0?'text-red-600':''}`}>{Number(s.average_r)>0?'+':''}{fmt(s.average_r)}R</td><td className="text-center">{Number(s.total_r)>0?'+':''}{fmt(s.total_r)}R</td><td className="text-center">{fmt(s.max_drawdown_r)}R</td><td className="text-center"><Badge variant={status==='PASS'?'green':status==='WATCH'?'amber':'red'}>{status}</Badge></td></tr>})}</tbody></table></div>
