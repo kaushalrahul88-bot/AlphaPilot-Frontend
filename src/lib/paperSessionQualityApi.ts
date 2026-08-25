@@ -4,6 +4,8 @@ export type SessionHealthSnapshot = {
   captured_at: string;
   symbol: string;
   expiry: string;
+  strike: number;
+  option_type: 'CE' | 'PE';
   checks: {
     api: boolean;
     quote: boolean;
@@ -22,6 +24,8 @@ export type SessionPaperTradeEvidence = {
   trade_id: string;
   symbol: string;
   expiry: string;
+  strike: number;
+  option_type: 'CE' | 'PE';
   status: 'OPEN' | 'CLOSED';
   paper_only: true;
   live_execution_enabled: false;
