@@ -102,14 +102,14 @@ export type RiskDisciplineResult = {
 };
 
 export async function evaluateRiskDiscipline(input: RiskDisciplineRequest): Promise<RiskDisciplineResult> {
-  const response = await fetch(\`\${ALPHAPILOT_API_BASE}/v1/risk/discipline/evaluate\`, {
+  const response = await fetch(ALPHAPILOT_API_BASE + '/v1/risk/discipline/evaluate', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    throw new Error(\`Risk engine \${response.status}: \${detail || response.statusText}\`);
+    throw new Error('Risk engine ' + response.status + ': ' + (detail || response.statusText));
   }
   return response.json() as Promise<RiskDisciplineResult>;
 }
