@@ -12,6 +12,11 @@ import {
   readPaperTrades,
   upsertPaperTrade,
 } from '@/lib/paperTradeLifecycleStorage';
+import {
+  PAPER_SESSION_QUALITY_EVENT,
+  cleanPaperSessionCount,
+  readPaperSessionAttestations,
+} from '@/lib/paperSessionQualityStorage';
 import type { RiskLimits } from '@/lib/types';
 
 type GateKey = 'account_state_verified' | 'executable_nse_session' | 'fresh_intraday_candles' | 'universe_scan_complete' | 'fno_confirmation_complete' | 'quality_checks_complete' | 'liquidity_passed';
@@ -60,6 +65,7 @@ export function RiskDisciplineSimulator({ riskLimits, tradingCapital }: { riskLi
   const [gates, setGates] = useState<Record<GateKey, boolean>>(INITIAL_GATES);
   const [manualApproval, setManualApproval] = useState(false);
   const [trades, setTrades] = useState(readPaperTrades);
+  const [cleanSessions, setCleanSessions] = useState(() => cleanPaperSessionCount(readPaperSessionAttestations()));
   const [running, setRunning] = useState(false);
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<RiskDisciplineResult | null>(null);
@@ -69,17 +75,22 @@ export function RiskDisciplineSimulator({ riskLimits, tradingCapital }: { riskLi
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const reload = () => setTrades(readPaperTrades());
+    const reload = () => {
+      setTrades(readPaperTrades());
+      setCleanSessions(cleanPaperSessionCount(readPaperSessionAttestations()));
+    };
     window.addEventListener(PAPER_TRADE_LIFECYCLE_EVENT, reload);
+    window.addEventListener(PAPER_SESSION_QUALITY_EVENT, reload);
     window.addEventListener('storage', reload);
     return () => {
       window.removeEventListener(PAPER_TRADE_LIFECYCLE_EVENT, reload);
+      window.removeEventListener(PAPER_SESSION_QUALITY_EVENT, reload);
       window.removeEventListener('storage', reload);
     };
   }, []);
 
   const lifecycleInputs = useMemo(() => paperTradeRiskInputs(trades), [trades]);
-  const lifecycleEvidence = useMemo(() => paperTradeEvidence(trades), [trades]);
+  const lifecycleEvidence = useMemo(() => paperTradeEvidence(trades, cleanSessions), [cleanSessions, trades]);
 
   async function evaluate() {
     setRunning(true);
@@ -220,13 +231,13 @@ export function RiskDisciplineSimulator({ riskLimits, tradingCapital }: { riskLi
       {mode === 'CONTROLLED_LIVE_PREVIEW' && <div className="space-y-3 rounded-lg border border-amber-200 dark:border-amber-900 p-3">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard label="Verified paper trades" value={String(lifecycleEvidence.paper_trades)} />
-          <StatCard label="Clean sessions" value="0" subvalue="Not attested in v1" accent="red" />
+          <StatCard label="Clean sessions" value={String(lifecycleEvidence.clean_paper_sessions)} subvalue="Contract-attested dates" accent={lifecycleEvidence.clean_paper_sessions >= 10 ? 'green' : 'red'} />
           <StatCard label="Expectancy" value={lifecycleEvidence.expectancy_r.toFixed(3) + 'R'} />
           <StatCard label="Profit factor" value={lifecycleEvidence.profit_factor.toFixed(2)} />
           <StatCard label="Max drawdown" value={lifecycleEvidence.max_drawdown_r.toFixed(2) + 'R'} />
         </div>
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={manualApproval} onChange={event => setManualApproval(event.target.checked)} />Manual approval recorded (preview evidence only)</label>
-        <p className="text-[11px] text-amber-700 dark:text-amber-300">Controlled-live cannot become eligible because clean sessions are deliberately not inferred from trade outcomes.</p>
+        <p className="text-[11px] text-amber-700 dark:text-amber-300">{lifecycleEvidence.clean_paper_sessions >= 10 ? 'Clean-session threshold passed; all other evidence gates still apply.' : 'Needs ' + String(10 - lifecycleEvidence.clean_paper_sessions) + ' more contract-attested clean sessions. Trade outcomes alone never count.'}</p>
       </div>}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">

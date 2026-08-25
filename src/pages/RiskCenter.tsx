@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/format';
 import { RiskDisciplineSimulator } from '@/components/RiskDisciplineSimulator';
 import { RiskDecisionLedgerPanel } from '@/components/RiskDecisionLedgerPanel';
 import { PaperTradeLifecyclePanel } from '@/components/PaperTradeLifecyclePanel';
+import { PaperSessionQualityPanel } from '@/components/PaperSessionQualityPanel';
 
 export function RiskCenter() {
   const { positions, riskLimits, updateRiskLimits, tradingCapital, journal } = useStore();
@@ -44,6 +45,7 @@ export function RiskCenter() {
 
       <RiskDisciplineSimulator riskLimits={riskLimits} tradingCapital={tradingCapital} />
       <PaperTradeLifecyclePanel />
+      <PaperSessionQualityPanel />
       <RiskDecisionLedgerPanel />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
