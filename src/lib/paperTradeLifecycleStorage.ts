@@ -42,9 +42,12 @@ function validTrade(value: unknown): value is PaperTrade {
     && trade.order_endpoint_called === false
     && typeof trade.symbol === 'string'
     && typeof trade.expiry === 'string'
+    && typeof trade.strike === 'number'
     && Number.isFinite(trade.strike)
     && (trade.option_type === 'CE' || trade.option_type === 'PE')
+    && typeof trade.quantity === 'number'
     && Number.isFinite(trade.quantity)
+    && typeof trade.initial_risk_rupees === 'number'
     && Number.isFinite(trade.initial_risk_rupees)
     && typeof trade.opened_at === 'string'
     && typeof trade.last_observed_at === 'string';
