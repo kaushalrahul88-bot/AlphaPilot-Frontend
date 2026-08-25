@@ -42,9 +42,9 @@ export function PaperTradeLifecyclePanel() {
   const [trades, setTrades] = useState<PaperTrade[]>(readPaperTrades);
   const [marking, setMarking] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [sessionOpen, setSessionOpen] = useState(inNseWindow);
   const markingRef = useRef(false);
   const summary = useMemo(() => paperTradeSummary(trades), [trades]);
-  const sessionOpen = inNseWindow();
 
   const reload = useCallback(() => setTrades(readPaperTrades()), []);
 
@@ -93,12 +93,16 @@ export function PaperTradeLifecyclePanel() {
   useEffect(() => {
     const onLifecycle = () => reload();
     const onVisible = () => {
+      setSessionOpen(inNseWindow());
       if (document.visibilityState === 'visible') void markOpenTrades();
     };
     window.addEventListener(PAPER_TRADE_LIFECYCLE_EVENT, onLifecycle);
     window.addEventListener('storage', onLifecycle);
     document.addEventListener('visibilitychange', onVisible);
-    const timer = window.setInterval(() => void markOpenTrades(), 60_000);
+    const timer = window.setInterval(() => {
+      setSessionOpen(inNseWindow());
+      void markOpenTrades();
+    }, 60_000);
     void markOpenTrades();
     return () => {
       window.removeEventListener(PAPER_TRADE_LIFECYCLE_EVENT, onLifecycle);
