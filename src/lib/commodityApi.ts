@@ -1,6 +1,7 @@
 import { ALPHAPILOT_API_BASE } from '@/lib/alphaPilotApi';
 
-export type CommoditySymbol = 'COPPER' | 'CRUDEOIL' | 'NATURALGAS';
+export type CommoditySymbol = 'CRUDEOIL' | 'NATURALGAS';
+export type CommodityResearchSymbol = CommoditySymbol | 'COPPER';
 export const COMMODITY_SCAN_EVENT = 'alphapilot:commodity-scan';
 
 export interface CommodityContract { underlying?:string; root_symbol?:string; exchange?:string; segment?:string; trading_symbol?:string; groww_symbol?:string; expiry?:string|null; expiry_date?:string|null; lot_size?:number|null; tick_size?:number|null; [key:string]:any; }
@@ -17,7 +18,7 @@ export interface CommodityNextSessionResult { symbol:CommoditySymbol; observatio
 export interface CommodityNextSessionResponse { mode:'ALPHAPILOT_COMMODITY_NEXT_SESSION_V1';protocol_revision:string;generated_at:string;observation_date:string;target_date:string;include_outcome:boolean;symbols:CommoditySymbol[];fixed_protocol:Record<string,unknown>;research_only:boolean;production_rules_changed:boolean;paper_trading_permission_changed:boolean;live_execution_enabled:boolean;option_premium_backtest:boolean;results:CommodityNextSessionResult[]; }
 
 async function commodityRequest<T>(path:string, init?:RequestInit):Promise<T>{ const response=await fetch(`${ALPHAPILOT_API_BASE}${path}`,{headers:{Accept:'application/json','Content-Type':'application/json',...(init?.headers||{})},...init}); if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`Commodity API ${response.status}: ${detail||response.statusText}`);} return response.json() as Promise<T>; }
-export function getCommodityProbe(symbol:CommoditySymbol){return commodityRequest<CommodityProbeResponse>(`/v1/commodity/probe/${encodeURIComponent(symbol)}`);}
+export function getCommodityProbe(symbol:CommodityResearchSymbol){return commodityRequest<CommodityProbeResponse>(`/v1/commodity/probe/${encodeURIComponent(symbol)}`);}
 export function getCommodityContract(symbol:CommoditySymbol){return commodityRequest<CommodityContract>(`/v1/commodity/contract/${encodeURIComponent(symbol)}`);}
 export function getCommodityQuote(symbol:CommoditySymbol){return commodityRequest<any>(`/v1/commodity/quote/${encodeURIComponent(symbol)}`);}
 export function getCommodityCandles(symbol:CommoditySymbol,timeframe='5m'){const params=new URLSearchParams({timeframe});return commodityRequest<any>(`/v1/commodity/candles/${encodeURIComponent(symbol)}?${params.toString()}`);}
