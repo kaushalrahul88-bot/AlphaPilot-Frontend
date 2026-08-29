@@ -1,145 +1,154 @@
-import { TrendingUp, TrendingDown, Wallet, DollarSign, Target, AlertTriangle, ScanLine } from 'lucide-react';
-import { useStore } from '@/store/StoreContext';
-import { Card, CardHeader, CardBody, StatCard, Badge, Table, TableRow, TableCell, Button } from '@/components/ui';
-import { LineChart, DonutChart, Sparkline } from '@/components/charts';
-import { portfolioSummary, allocationBySymbol, positionPnl } from '@/lib/portfolio';
-import { getQuote, getOhlc } from '@/lib/marketData';
-import { formatCurrency, formatPct, formatCompact } from '@/lib/format';
+import { useCallback, useEffect, useState } from 'react';
+import { Activity, Brain, Database, FlaskConical, Gauge, RefreshCw, ScanLine, Server, ShieldCheck } from 'lucide-react';
+import { Badge, Button, Card, CardBody, CardHeader, StatCard } from '@/components/ui';
+import { getHealth } from '@/lib/alphaPilotApi';
+import { getCommodityProbe, type CommodityProbeResponse } from '@/lib/commodityApi';
 import type { PageKey } from '@/components/Sidebar';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
+type Health = Awaited<ReturnType<typeof getHealth>>;
 
 export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) {
-  const { positions, journal, tradingCapital } = useStore();
-  const realizedHistory = journal.map((j) => j.pnl);
-  const summary = portfolioSummary(positions, tradingCapital, realizedHistory);
-  const alloc = allocationBySymbol(positions);
-  const niftyOhlc = getOhlc('NIFTY');
+  const [health, setHealth] = useState<Health | null>(null);
+  const [copper, setCopper] = useState<CommodityProbeResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Portfolio overview and market snapshot</p>
+  const refresh = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    const [healthResult, copperResult] = await Promise.allSettled([
+      getHealth(),
+      getCommodityProbe('COPPER'),
+    ]);
+    if (healthResult.status === 'fulfilled') setHealth(healthResult.value);
+    if (copperResult.status === 'fulfilled') setCopper(copperResult.value);
+    const failures = [healthResult, copperResult]
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .map(result => result.reason instanceof Error ? result.reason.message : String(result.reason));
+    setError(failures.length ? failures.join(' · ') : null);
+    setCheckedAt(new Date().toISOString());
+    setLoading(false);
+  }, [loading]);
+
+  useEffect(() => { void refresh(); }, []);
+
+  const collectorEnabled = health?.commodity_collector_enabled === true;
+  const apiReady = health?.ok === true;
+  const copperReady = copper?.ready_for_phase1 === true;
+  const contract = copper?.contract;
+  const candleCount = Number(copper?.candle_count ?? (Array.isArray(copper?.candles) ? copper.candles.length : 0));
+
+  return <div className="space-y-5">
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <div className="flex items-center gap-2">
+          <Brain size={24} className="text-blue-600"/>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Market Brain</h1>
         </div>
-        <Button variant="primary" onClick={() => onNavigate('trade-setup')}>
-          <ScanLine size={16} className="inline mr-1.5" />
-          Scan for Trades
+        <p className="text-sm text-slate-500 mt-1">AlphaPilot command center — observe, store, validate, then decide.</p>
+      </div>
+      <div className="flex gap-2">
+        <Button variant="ghost" onClick={() => void refresh()} disabled={loading}>
+          <RefreshCw size={15} className={`inline mr-1.5 ${loading ? 'animate-spin' : ''}`}/>
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </Button>
+        <Button variant="primary" onClick={() => onNavigate('trade-scanner')}>
+          <ScanLine size={15} className="inline mr-1.5"/>Open Scanner
         </Button>
       </div>
+    </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Portfolio Value" value={formatCurrency(summary.totalValue, true)} icon={<Wallet size={20} />} accent="blue" />
-        <StatCard label="Invested Capital" value={formatCurrency(summary.investedCapital, true)} icon={<DollarSign size={20} />} />
-        <StatCard label="Available Cash" value={formatCurrency(summary.availableCash, true)} icon={<Wallet size={20} />} />
-        <StatCard label="Today's P&L" value={formatCurrency(summary.todayPnl, true)} subvalue={formatPct(summary.todayPnlPct)} accent={summary.todayPnl >= 0 ? 'green' : 'red'} icon={summary.todayPnl >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />} />
-      </div>
+    {error && <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-300">{error}</div>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Realized P&L" value={formatCurrency(summary.realizedPnl, true)} accent={summary.realizedPnl >= 0 ? 'green' : 'red'} />
-        <StatCard label="Unrealized P&L" value={formatCurrency(summary.unrealizedPnl, true)} accent={summary.unrealizedPnl >= 0 ? 'green' : 'red'} />
-        <StatCard label="Return %" value={formatPct(summary.returnPct)} accent={summary.returnPct >= 0 ? 'green' : 'red'} icon={<TrendingUp size={20} />} />
-        <StatCard label="Open Risk" value={formatCurrency(summary.openRisk, true)} subvalue={`${summary.openRiskPct.toFixed(1)}% of capital`} accent="amber" icon={<AlertTriangle size={20} />} />
-      </div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <StatCard label="Backend API" value={apiReady ? 'ONLINE' : health ? 'DEGRADED' : 'CHECKING'} accent={apiReady ? 'green' : 'amber'} icon={<Server size={20}/>} />
+      <StatCard label="Market Provider" value={health?.provider ?? '—'} accent="blue" icon={<Activity size={20}/>} />
+      <StatCard label="Research Memory" value={collectorEnabled ? 'PERSISTENT' : health ? 'DISABLED' : 'CHECKING'} accent={collectorEnabled ? 'green' : 'amber'} icon={<Database size={20}/>} />
+      <StatCard label="Production Rules" value="FROZEN" subvalue="Research cannot self-promote" accent="blue" icon={<ShieldCheck size={20}/>} />
+    </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader title="Portfolio Equity Curve" subtitle="Based on realized P&L history" />
-          <CardBody>
-            <LineChart data={journal.length > 0 ? journal.reduce((acc: number[], j) => {
-              const prev = acc[acc.length - 1] ?? tradingCapital;
-              return [...acc, prev + j.pnl];
-            }, [tradingCapital]) : [tradingCapital]} height={220} color="#3b82f6" />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Portfolio Allocation" subtitle="By position value" />
-          <CardBody>
-            {alloc.length > 0 ? (
-              <DonutChart data={alloc.slice(0, 6).map((a, i) => ({ label: a.symbol, value: a.value, color: COLORS[i % COLORS.length] }))} />
-            ) : (
-              <p className="text-slate-400 text-sm">No positions yet</p>
-            )}
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Win Rate" value={`${summary.winRate.toFixed(0)}%`} icon={<Target size={20} />} accent="blue" />
-        <StatCard label="Avg Profit" value={formatCurrency(summary.avgProfit, true)} accent="green" />
-        <StatCard label="Avg Loss" value={formatCurrency(summary.avgLoss, true)} accent="red" />
-        <StatCard label="Max Drawdown" value={`${summary.maxDrawdown.toFixed(2)}%`} accent="amber" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader title="Open Positions" subtitle={`${positions.length} positions`} action={<Button size="sm" variant="ghost" onClick={() => onNavigate('portfolio')}>View All</Button>} />
-          <CardBody className="p-0">
-            <Table headers={['Symbol', 'Qty', 'Avg', 'LTP', 'P&L', '']}>
-              {positions.slice(0, 6).map((pos) => {
-                const pnl = positionPnl(pos);
-                const quote = getQuote(pos.symbol);
-                return (
-                  <TableRow key={pos.id}>
-                    <TableCell className="font-medium text-slate-900 dark:text-white">{pos.symbol}</TableCell>
-                    <TableCell>{pos.quantity}</TableCell>
-                    <TableCell>₹{pos.avgPrice.toFixed(2)}</TableCell>
-                    <TableCell>₹{quote?.ltp.toFixed(2) ?? pos.currentPrice.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <span className={pnl.unrealizedPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
-                        {formatCurrency(pnl.unrealizedPnl, true)}
-                      </span>
-                    </TableCell>
-                    <TableCell><Sparkline data={getOhlc(pos.symbol).slice(-20)} width={60} height={24} color="auto" /></TableCell>
-                  </TableRow>
-                );
-              })}
-            </Table>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader title="Today's Trades" subtitle="From your journal" action={<Button size="sm" variant="ghost" onClick={() => onNavigate('journal')}>View All</Button>} />
-          <CardBody className="p-0">
-            <Table headers={['Instrument', 'Direction', 'Result', 'P&L', 'Strategy']}>
-              {journal.slice(-6).reverse().map((j) => (
-                <TableRow key={j.id}>
-                  <TableCell className="font-medium text-slate-900 dark:text-white">{j.instrument}</TableCell>
-                  <TableCell>
-                    <Badge variant={j.direction === 'BULLISH' ? 'green' : 'red'}>{j.direction}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={j.result === 'WIN' ? 'green' : j.result === 'LOSS' ? 'red' : 'default'}>{j.result}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className={j.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
-                      {formatCurrency(j.pnl, true)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-500">{j.strategy ?? '-'}</TableCell>
-                </TableRow>
-              ))}
-            </Table>
-          </CardBody>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader title="Market Snapshot" subtitle="MOCK data — NIFTY 50" />
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card className="lg:col-span-2">
+        <CardHeader title="Current Market Brain Process" subtitle="Evidence-first workflow. A trade setup is the output, not the starting point." action={<Badge variant="blue">RESEARCH → VALIDATE</Badge>} />
         <CardBody>
-          <LineChart data={niftyOhlc} height={160} color="auto" />
-          <div className="flex items-center justify-between mt-3 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">NIFTY 50</span>
-            <span className="font-semibold text-slate-900 dark:text-white">₹{getQuote('NIFTY').ltp.toFixed(2)}</span>
-            <Badge variant={getQuote('NIFTY').changePct >= 0 ? 'green' : 'red'}>{formatPct(getQuote('NIFTY').changePct)}</Badge>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <ProcessStep number="1" title="Observe" detail="Live + historical market data" active />
+            <ProcessStep number="2" title="Store" detail="Durable PostgreSQL memory" active={collectorEnabled} />
+            <ProcessStep number="3" title="Validate" detail="Chronological regime stability" active />
+            <ProcessStep number="4" title="Decide" detail="Trade / no-trade after gates" active />
+          </div>
+          <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">Research policy</p>
+            <p className="text-xs text-slate-500 mt-1">No indicator, filter, or candidate rule is promoted because it looks good in one period. AlphaPilot requires repeatability across chronological windows and fresh untouched validation before a rule can advance.</p>
           </div>
         </CardBody>
       </Card>
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 text-center pb-4">
-        Disclaimer: AlphaPilot provides analytical information based on MOCK data. It does not guarantee returns and is not financial advice.
-      </p>
+      <Card>
+        <CardHeader title="Copper Research" subtitle="Current commodity proving ground" action={<Badge variant={copperReady ? 'green' : 'blue'}>{copperReady ? 'DATA READY' : 'RESEARCH'}</Badge>} />
+        <CardBody className="space-y-3">
+          <Metric label="Contract" value={String(contract?.trading_symbol ?? 'Resolving…')} />
+          <Metric label="Expiry" value={String(contract?.expiry_date ?? contract?.expiry ?? '—')} />
+          <Metric label="Probe Candles" value={Number.isFinite(candleCount) && candleCount > 0 ? String(candleCount) : '—'} />
+          <Metric label="Provider" value={String(copper?.provider ?? health?.provider ?? '—')} />
+          <Button size="sm" variant="ghost" onClick={() => onNavigate('commodity-backtest')} className="w-full">Open Research & Backtest</Button>
+        </CardBody>
+      </Card>
     </div>
-  );
+
+    <Card>
+      <CardHeader title="Primary Workspaces" subtitle="Only current AlphaPilot workflows are surfaced here. Legacy experiments remain archived in code." />
+      <CardBody>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Workspace icon={<FlaskConical size={18}/>} title="Research & Backtest" detail="Commodity validation and historical evidence" onClick={() => onNavigate('commodity-backtest')} />
+          <Workspace icon={<Gauge size={18}/>} title="Commodity Data" detail="Groww contracts, candles and diagnostics" onClick={() => onNavigate('commodity-diagnostics')} />
+          <Workspace icon={<Activity size={18}/>} title="Live Validation" detail="Forward-test decisions without live execution" onClick={() => onNavigate('live-validation')} />
+          <Workspace icon={<ShieldCheck size={18}/>} title="Risk Center" detail="Risk gates before any executable setup" onClick={() => onNavigate('risk')} />
+        </div>
+      </CardBody>
+    </Card>
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <Card>
+        <CardHeader title="What is intentionally hidden" subtitle="Old screens are no longer part of the main workflow." />
+        <CardBody>
+          <p className="text-xs text-slate-500">Legacy Candidate A–H validators, old setup-discovery panels, experimental Market Brain versions, mock portfolio widgets, and duplicate diagnostics are retained in the repository for audit/history but are no longer rendered as the main product experience.</p>
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader title="System Snapshot" subtitle={checkedAt ? `Last refreshed ${new Date(checkedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}` : 'Checking backend'} />
+        <CardBody>
+          <div className="grid grid-cols-2 gap-3">
+            <Metric label="API Version" value={health?.version ?? '—'} />
+            <Metric label="Collector" value={collectorEnabled ? 'Enabled' : health ? 'Disabled' : '—'} />
+            <Metric label="Copper Probe" value={copperReady ? 'Ready' : copper ? 'Needs review' : '—'} />
+            <Metric label="Execution" value="Rule-gated" />
+          </div>
+          <Button size="sm" variant="ghost" className="w-full mt-3" onClick={() => onNavigate('system-health')}>Open System Health</Button>
+        </CardBody>
+      </Card>
+    </div>
+
+    <p className="text-[11px] text-slate-400 text-center pb-3">AlphaPilot provides research and decision-support tooling. Research results do not guarantee future trading performance.</p>
+  </div>;
+}
+
+function ProcessStep({ number, title, detail, active }: { number: string; title: string; detail: string; active: boolean }) {
+  return <div className={`rounded-lg border p-3 ${active ? 'border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/10' : 'border-slate-200 dark:border-slate-800'}`}>
+    <div className="flex items-center gap-2"><span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${active ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{number}</span><p className="text-sm font-semibold">{title}</p></div>
+    <p className="text-[11px] text-slate-500 mt-2">{detail}</p>
+  </div>;
+}
+
+function Workspace({ icon, title, detail, onClick }: { icon: React.ReactNode; title: string; detail: string; onClick: () => void }) {
+  return <button onClick={onClick} className="text-left rounded-lg border border-slate-200 dark:border-slate-800 p-4 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+    <div className="flex items-center gap-2 text-blue-600">{icon}<span className="text-sm font-semibold text-slate-900 dark:text-white">{title}</span></div>
+    <p className="text-xs text-slate-500 mt-2">{detail}</p>
+  </button>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-[10px] text-slate-500">{label}</p><p className="text-sm font-semibold mt-1 break-all">{value}</p></div>;
 }
