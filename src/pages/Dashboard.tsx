@@ -15,7 +15,6 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (loading) return;
     setLoading(true);
     setError(null);
     const [healthResult, copperResult] = await Promise.allSettled([
@@ -30,9 +29,9 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
     setError(failures.length ? failures.join(' · ') : null);
     setCheckedAt(new Date().toISOString());
     setLoading(false);
-  }, [loading]);
+  }, []);
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const collectorEnabled = health?.commodity_collector_enabled === true;
   const apiReady = health?.ok === true;
