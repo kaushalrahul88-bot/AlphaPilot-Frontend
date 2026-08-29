@@ -1,6 +1,6 @@
 import { ALPHAPILOT_API_BASE } from '@/lib/alphaPilotApi';
 
-export type CommoditySymbol = 'CRUDEOIL' | 'NATURALGAS';
+export type CommoditySymbol = 'COPPER' | 'CRUDEOIL' | 'NATURALGAS';
 export const COMMODITY_SCAN_EVENT = 'alphapilot:commodity-scan';
 
 export interface CommodityContract { underlying?:string; root_symbol?:string; exchange?:string; segment?:string; trading_symbol?:string; groww_symbol?:string; expiry?:string|null; expiry_date?:string|null; lot_size?:number|null; tick_size?:number|null; [key:string]:any; }
