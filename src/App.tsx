@@ -81,7 +81,7 @@ function AppContent(){
     case'live-validation':return <LiveValidation/>;
     case'system-health':return <SystemHealth/>;
     case'data-quality':return <DataQuality/>;
-    case'backtest':return <div className="space-y-5"><MarketBrainV2/><SessionCloseMomentumV1/><CandidateHMonthReplay/><CandidateHDayReplay/><CandidateHOptionValidator/><CandidateHExecutionValidator/><ExecutionStructureDiscoveryV1/><CandidateGValidator/><CandidateFValidator/><CandlestickDiscoveryV2/><CandidateEValidator/><CandlestickDiscoveryV1/><CandidateDValidator/><CandidateCValidator/><SetupDiscoveryV2/><PullbackShortOptionH1/><SetupDiscoveryV3/><StrategyRegimeRoutingResearch/><MarketBrainContinuousRegimeResearch/><MarketBrainDynamicContextResearch/><MarketBrainArchetypeContextResearch/><MarketBrainSetupExpectancyResearch/><MarketBrainTransitionResearch/><MarketBrainReplicationResearch/><MarketBrainInteractionResearch/><GlobalIntelligence/><CandidateBValidator/><CandidateValidator/><EdgeTransitionDiscovery/><EdgeInteractionDiscovery/><EdgeDiscoveryLab/><MarketRegimeResearch/><OptionNativePhase2/><OptionNativeResearchV3/><StrategyResearchPanel/><StrategyPremiumReplay/><FnoHistoryProbe/><FnoPremiumBacktest/><Backtest/></div>;
+    case'backtest':return <Backtest/>;
     case'direction-diagnostics':return <DirectionDiagnosticsPage/>;
     case'trade-setup':return <TradeSetup/>;
     case'position-sizing':return <PositionSizing/>;
