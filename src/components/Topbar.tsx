@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '@/store/StoreContext';
 import { INSTRUMENTS } from '@/lib/marketData';
 import { formatTime } from '@/lib/format';
+import { getHealth } from '@/lib/alphaPilotApi';
 import type { PageKey } from './Sidebar';
 
 export function Topbar({ onNavigate, onOpenChat }: { onNavigate: (p: PageKey) => void; onOpenChat: () => void }) {
@@ -10,11 +11,33 @@ export function Topbar({ onNavigate, onOpenChat }: { onNavigate: (p: PageKey) =>
   const [search, setSearch] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [provider, setProvider] = useState<string>('CHECKING');
+  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const check = async () => {
+      try {
+        const h = await getHealth();
+        if (!active) return;
+        setProvider(String(h.provider || 'UNKNOWN'));
+        setApiOnline(h.ok === true);
+      } catch {
+        if (!active) return;
+        setProvider('OFFLINE');
+        setApiOnline(false);
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 60000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
 
   const results = search.length > 0
     ? INSTRUMENTS.filter((i) => i.symbol.toLowerCase().includes(search.toLowerCase()) || i.name.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
@@ -52,10 +75,10 @@ export function Topbar({ onNavigate, onOpenChat }: { onNavigate: (p: PageKey) =>
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-          <Radio size={12} className="animate-pulse" />
-          <span className="text-xs font-medium">MOCK</span>
-          <span className="text-xs text-amber-600 dark:text-amber-500/70">{formatTime(now)}</span>
+        <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full ${apiOnline === false ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'}`}>
+          <Radio size={12} className={apiOnline === null ? 'animate-pulse' : ''} />
+          <span className="text-xs font-medium">{provider}</span>
+          <span className="text-xs opacity-70">{formatTime(now)}</span>
         </div>
         <button
           onClick={onOpenChat}
