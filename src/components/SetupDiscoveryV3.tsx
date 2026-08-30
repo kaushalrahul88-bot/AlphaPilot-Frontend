@@ -1,0 +1,43 @@
+import { useEffect,useMemo,useState } from 'react';
+import { FlaskConical,Play } from 'lucide-react';
+import { Badge,Button,Card,CardBody,CardHeader } from '@/components/ui';
+import { ALPHAPILOT_API_BASE } from '@/lib/alphaPilotApi';
+
+type Row={setup_type:string;direction:'LONG'|'SHORT';trades:number;win_rate:number;average_r:number;total_r:number;profit_factor:number;state:'PROMISING'|'WEAK'|'LOW_SAMPLE'};
+type Result={start_date:string;end_date:string;observations:number;rows:Row[];errors:{symbol:string;error:string}[]};
+type Block={id:string;start:string;end:string};
+const BLOCKS:Block[]=[
+ {id:'F-1',start:'2026-04-13',end:'2026-04-17'},
+ {id:'F-2',start:'2026-04-20',end:'2026-04-24'},
+ {id:'F-3',start:'2026-04-27',end:'2026-05-01'},
+ {id:'F-4',start:'2026-05-04',end:'2026-05-08'},
+ {id:'F-5',start:'2026-05-11',end:'2026-05-15'},
+ {id:'F-6',start:'2026-05-18',end:'2026-05-22'},
+];
+const SYMBOLS=['RELIANCE','HDFCBANK','ICICIBANK','SBIN','TCS','INFY','TATASTEEL','MARUTI'];
+const STORAGE='alphapilot.setup-discovery-v3.fast-follow-through.2026-08-25';
+const REQUIRED_BLOCKS=4;
+const fmtR=(v:number)=>`${v>=0?'+':''}${Number(v||0).toFixed(3)}R`;
+async function runBlock(b:Block):Promise<Result>{const r=await fetch(`${ALPHAPILOT_API_BASE}/v1/research/setup-discovery-v3`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbols:SYMBOLS,start_date:b.start,end_date:b.end})});if(!r.ok){let d='';try{const x=await r.json();d=x?.detail?`: ${x.detail}`:''}catch{d=''}throw new Error(`${b.id} API ${r.status}${d}`)}return r.json()}
+
+export function SetupDiscoveryV3(){
+ const[results,setResults]=useState<Record<string,Result>>(()=>{try{return JSON.parse(localStorage.getItem(STORAGE)||'{}')}catch{return{}}});
+ const[running,setRunning]=useState(false),[current,setCurrent]=useState<string|null>(null),[started,setStarted]=useState(0),[elapsed,setElapsed]=useState(0),[error,setError]=useState<string|null>(null);
+ useEffect(()=>{localStorage.setItem(STORAGE,JSON.stringify(results))},[results]);
+ useEffect(()=>{if(!running)return;const tick=()=>setElapsed(Math.floor((Date.now()-started)/1000));tick();const id=window.setInterval(tick,1000);return()=>window.clearInterval(id)},[running,started]);
+ const replicated=useMemo(()=>{const map=new Map<string,{setup:string;direction:string;blocks:string[];trades:number;weighted:number}>();for(const b of BLOCKS){for(const row of results[b.id]?.rows||[]){if(row.state!=='PROMISING')continue;const key=`${row.setup_type}|${row.direction}`;const x=map.get(key)||{setup:row.setup_type,direction:row.direction,blocks:[],trades:0,weighted:0};x.blocks.push(b.id);x.trades+=row.trades;x.weighted+=row.average_r*row.trades;map.set(key,x)}}return[...map.values()].filter(x=>x.blocks.length>=REQUIRED_BLOCKS).map(x=>({...x,avgR:x.weighted/x.trades}))},[results]);
+ const completed=BLOCKS.filter(b=>results[b.id]).length,totalObs=Object.values(results).reduce((n,r)=>n+r.observations,0),promising=Object.values(results).reduce((n,r)=>n+r.rows.filter(x=>x.state==='PROMISING').length,0),pct=Math.round(completed/BLOCKS.length*100);
+ async function run(){setRunning(true);setError(null);setStarted(Date.now());setElapsed(0);try{for(const b of BLOCKS){if(results[b.id])continue;setCurrent(b.id);const r=await runBlock(b);setResults(x=>({...x,[b.id]:r}))}}catch(e){setError(e instanceof Error?e.message:'Setup Discovery v3 failed. You can resume completed blocks.')}finally{setRunning(false);setCurrent(null)}}
+ return <Card><CardHeader title="Setup Discovery v3 — Fast Follow-Through Archetypes" subtitle="Fresh pre-H1 development only. Production, scanner, paper and live rules remain unchanged." action={<FlaskConical size={18} className="text-violet-500"/>}/><CardBody className="space-y-4">
+  <div className="flex gap-2 flex-wrap"><Badge variant="blue">SETUP DISCOVERY v3</Badge><Badge variant="default">6 PRE-H1 BLOCKS</Badge><Badge variant="default">4 FROZEN ARCHETYPES</Badge><Badge variant="default">NEXT 5m OPEN</Badge><Badge variant="default">FIXED 1R</Badge><Badge variant="default">4-OF-6 REPLICATION</Badge><Badge variant="default">RESEARCH ONLY</Badge></div>
+  <div className="flex items-center justify-between gap-4"><p className="text-xs text-slate-500">Breakout retest, liquidity-sweep confirmation, two-bar momentum expansion and VWAP compression release. PROMISING requires ≥12 trades, Avg R ≥ +0.10R, win rate ≥55% and PF ≥1.20 in a block. The exact setup + direction must pass 4 independent blocks.</p><Button variant="primary" onClick={run} disabled={running||completed===BLOCKS.length}><Play size={14} className="inline mr-1"/>{running?'Running v3…':completed?'Resume v3':'Run Setup Discovery v3'}</Button></div>
+  {(running||completed>0)&&<div className="rounded-lg border p-3 space-y-2"><div className="flex justify-between text-xs"><span>{running?`Running ${current} · saved after every block`:completed===BLOCKS.length?'All blocks complete':'Paused · resume available'}</span><span>{pct}% · {elapsed}s</span></div><div className="h-2 rounded bg-slate-200 dark:bg-slate-800 overflow-hidden"><div className="h-full bg-violet-500 transition-all" style={{width:`${pct}%`}}/></div></div>}
+  {error&&<div className="rounded-lg border border-red-200 p-3 text-sm text-red-600">{error}</div>}
+  <div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Block</th><th>Dates</th><th>Observations</th><th>Promising</th><th>Errors</th><th>Status</th></tr></thead><tbody>{BLOCKS.map(b=>{const r=results[b.id];return <tr key={b.id} className="border-t"><td className="p-2 font-semibold">{b.id}</td><td className="text-center">{b.start} → {b.end}</td><td className="text-center">{r?.observations??'—'}</td><td className="text-center">{r?r.rows.filter(x=>x.state==='PROMISING').length:'—'}</td><td className="text-center">{r?.errors.length??'—'}</td><td className="text-center"><Badge variant={r?'green':current===b.id?'blue':'default'}>{r?'COMPLETE':current===b.id?'RUNNING':'PENDING'}</Badge></td></tr>})}</tbody></table></div>
+  {completed>0&&<div className="grid grid-cols-2 md:grid-cols-5 gap-3"><Stat label="Completed" value={`${completed}/6`}/><Stat label="Observations" value={String(totalObs)}/><Stat label="Promising rows" value={String(promising)}/><Stat label="Replicated" value={String(replicated.length)}/><div className="rounded-lg border p-3"><p className="text-xs text-slate-500">Decision</p><Badge variant={replicated.length?'blue':'default'}>{completed<6?'INCOMPLETE':replicated.length?'REPLICATED_CANDIDATE':'NO_REPLICATED_EDGE'}</Badge></div></div>}
+  {replicated.length>0&&<div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Setup</th><th>Direction</th><th>Passing blocks</th><th>Trades</th><th>Promising-block Avg R</th></tr></thead><tbody>{replicated.map(x=><tr key={`${x.setup}-${x.direction}`} className="border-t"><td className="p-2 font-medium">{x.setup}</td><td className="text-center">{x.direction}</td><td className="text-center">{x.blocks.join(', ')}</td><td className="text-center">{x.trades}</td><td className="text-center">{fmtR(x.avgR)}</td></tr>)}</tbody></table></div>}
+  {completed>0&&<div className="space-y-3">{BLOCKS.map(b=>{const r=results[b.id];return r?<div key={b.id}><p className="text-xs font-semibold mb-1">{b.id}</p><div className="overflow-x-auto rounded-lg border"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Setup</th><th>Dir</th><th>Trades</th><th>Win</th><th>Avg R</th><th>Total R</th><th>PF</th><th>State</th></tr></thead><tbody>{r.rows.map(x=><tr key={`${x.setup_type}-${x.direction}`} className="border-t"><td className="p-2">{x.setup_type}</td><td className="text-center">{x.direction}</td><td className="text-center">{x.trades}</td><td className="text-center">{x.win_rate.toFixed(1)}%</td><td className="text-center">{fmtR(x.average_r)}</td><td className="text-center">{fmtR(x.total_r)}</td><td className="text-center">{x.profit_factor.toFixed(2)}</td><td className="text-center"><Badge variant={x.state==='PROMISING'?'green':x.state==='WEAK'?'red':'default'}>{x.state}</Badge></td></tr>)}</tbody></table></div></div>:null})}</div>}
+  <p className="text-[11px] text-slate-500">Underlying-only development. H-1 DTE, premium, strike, time and symbol slices are prohibited as filters. A survivor may only advance to a newly frozen holdout after 25 August 2026; it does not enable production.</p>
+ </CardBody></Card>
+}
+function Stat({label,value}:{label:string;value:string}){return <div className="rounded-lg border p-3"><p className="text-xs text-slate-500">{label}</p><p className="text-lg font-bold">{value}</p></div>}
