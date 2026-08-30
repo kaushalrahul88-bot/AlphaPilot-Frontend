@@ -16,7 +16,6 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
   const [parity, setParity] = useState<ProviderParityAudit | null>(null);
   const [replayStatus, setReplayStatus] = useState('NOT LOADED');
   const [loading, setLoading] = useState(false);
-  const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -52,17 +51,12 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
     }
 
     setError(failures.length ? failures.join(' · ') : null);
-    setCheckedAt(new Date().toISOString());
     setLoading(false);
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const collectorEnabled = health?.commodity_collector_enabled === true;
-  const apiReady = health?.ok === true;
-  const copperReady = copper?.ready_for_phase1 === true;
   const contract = copper?.contract;
-  const candleCount = Number(copper?.candle_count ?? (Array.isArray(copper?.candles) ? copper.candles.length : 0));
   const dataPass = dataAudit ? Object.values(dataAudit.checks).every(Boolean) : null;
   const parityPass = parity ? Object.values(parity.checks).every(Boolean) : null;
   const integrity = dataPass === true && parityPass === true ? 'VERIFIED' : dataPass === false || parityPass === false ? 'REVIEW' : 'LOCKED';
