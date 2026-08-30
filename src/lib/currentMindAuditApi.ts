@@ -18,7 +18,7 @@ async function internalRequest<T>(path:string,token:string,init?:RequestInit):Pr
  return response.json() as Promise<T>;
 }
 export function readCurrentMindToken(){if(typeof window==='undefined')return'';return window.sessionStorage.getItem(CURRENT_MIND_TOKEN_KEY)??''}
-export function storeCurrentMindToken(value:string){if(typeof window==='undefined')return;value.trim()?window.sessionStorage.setItem(CURRENT_MIND_TOKEN_KEY,value.trim()):window.sessionStorage.removeItem(CURRENT_MIND_TOKEN_KEY)}
+export function storeCurrentMindToken(value:string){if(typeof window==='undefined')return;if(value.trim())window.sessionStorage.setItem(CURRENT_MIND_TOKEN_KEY,value.trim());else window.sessionStorage.removeItem(CURRENT_MIND_TOKEN_KEY)}
 export function getCurrentMindReplayStatus(token:string){return internalRequest<ReplayJob>('/v1/internal/copper/current-mind-20-click-replay/status',token)}
 export function startCurrentMindReplay(token:string){return internalRequest<{status:string}>('/v1/internal/copper/current-mind-20-click-replay/start',token,{method:'POST'})}
 export function getCurrentMindReplay(token:string){return internalRequest<CurrentMindReplay>('/v1/internal/copper/current-mind-20-click-replay',token)}
