@@ -4,6 +4,7 @@ import { useStore } from '@/store/StoreContext';
 import { INSTRUMENTS } from '@/lib/marketData';
 import { formatTime } from '@/lib/format';
 import { getHealth } from '@/lib/alphaPilotApi';
+import { getHealth } from '@/lib/alphaPilotApi';
 import type { PageKey } from './Sidebar';
 
 export function Topbar({ onNavigate, onOpenChat }: { onNavigate: (p: PageKey) => void; onOpenChat: () => void }) {
@@ -13,10 +14,31 @@ export function Topbar({ onNavigate, onOpenChat }: { onNavigate: (p: PageKey) =>
   const [now, setNow] = useState(Date.now());
   const [provider, setProvider] = useState<string>('CHECKING');
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [provider, setProvider] = useState<string>('CHECKING');
+  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const check = async () => {
+      try {
+        const h = await getHealth();
+        if (!active) return;
+        setProvider(String(h.provider || 'UNKNOWN'));
+        setApiOnline(h.ok === true);
+      } catch {
+        if (!active) return;
+        setProvider('OFFLINE');
+        setApiOnline(false);
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 60000);
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
 
   useEffect(() => {
