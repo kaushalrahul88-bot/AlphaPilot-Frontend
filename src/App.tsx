@@ -14,6 +14,7 @@ import { MondayLiveTest } from '@/pages/MondayLiveTest';
 import { FirstLiveSessionChecklist } from '@/pages/FirstLiveSessionChecklist';
 import { CommodityDiagnostics } from '@/pages/CommodityDiagnostics';
 import { CommodityBacktest } from '@/pages/CommodityBacktest';
+import { CurrentMindAudit } from '@/pages/CurrentMindAudit';
 import { CommodityNextSession } from '@/pages/CommodityNextSession';
 import { LiveValidation } from '@/pages/LiveValidation';
 import { SystemHealth } from '@/pages/SystemHealth';
@@ -40,6 +41,7 @@ function AppContent(){
     case'commodity-next-session':return <CommodityNextSession/>;
     case'commodity-diagnostics':return <CommodityDiagnostics/>;
     case'commodity-backtest':return <CommodityBacktest/>;
+    case'current-mind-audit':return <CurrentMindAudit/>;
     case'live-validation':return <LiveValidation/>;
     case'system-health':return <SystemHealth/>;
     case'data-quality':return <DataQuality/>;

@@ -1,7 +1,7 @@
-import { LayoutDashboard, LineChart, Brain, BookOpen, ShieldAlert, Settings, Menu, X, ScanLine, FlaskConical, Activity, HeartPulse, Gauge, MoonStar } from 'lucide-react';
+import { LayoutDashboard, LineChart, Brain, BookOpen, ShieldAlert, Settings, Menu, X, ScanLine, FlaskConical, Activity, HeartPulse, Gauge, MoonStar, Microscope } from 'lucide-react';
 import { useState } from 'react';
 
-export type PageKey = 'dashboard' | 'markets' | 'portfolio' | 'options' | 'ai-analyst' | 'trade-scanner' | 'commodity-next-session' | 'commodity-diagnostics' | 'commodity-backtest' | 'live-validation' | 'system-health' | 'data-quality' | 'backtest' | 'direction-diagnostics' | 'trade-setup' | 'position-sizing' | 'journal' | 'risk' | 'news' | 'alerts' | 'settings';
+export type PageKey = 'dashboard' | 'markets' | 'portfolio' | 'options' | 'ai-analyst' | 'trade-scanner' | 'commodity-next-session' | 'commodity-diagnostics' | 'commodity-backtest' | 'current-mind-audit' | 'live-validation' | 'system-health' | 'data-quality' | 'backtest' | 'direction-diagnostics' | 'trade-setup' | 'position-sizing' | 'journal' | 'risk' | 'news' | 'alerts' | 'settings';
 
 const NAV_ITEMS: { key: PageKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Market Brain', icon: Brain },
@@ -10,6 +10,7 @@ const NAV_ITEMS: { key: PageKey; label: string; icon: typeof LayoutDashboard }[]
   { key: 'commodity-next-session', label: 'Commodity Session', icon: MoonStar },
   { key: 'commodity-diagnostics', label: 'Commodity Data', icon: Gauge },
   { key: 'commodity-backtest', label: 'Research & Backtest', icon: FlaskConical },
+  { key: 'current-mind-audit', label: 'Current Mind Audit', icon: Microscope },
   { key: 'live-validation', label: 'Live Validation', icon: Activity },
   { key: 'risk', label: 'Risk Center', icon: ShieldAlert },
   { key: 'system-health', label: 'System Health', icon: HeartPulse },
