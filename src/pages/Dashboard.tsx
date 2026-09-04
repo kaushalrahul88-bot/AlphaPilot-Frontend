@@ -30,6 +30,8 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
 
   const action = result?.current_mind?.action ?? result?.status ?? 'READY';
   const option = result?.data?.option_positioning;
+  const expression = result?.execution?.option_expression;
+  const premiumMemory = result?.data?.option_premium_memory;
   const safe = result?.execution?.paper_signal_only === true && result?.execution?.live_execution_enabled === false && result?.execution?.broker_order_placement_enabled === false;
 
   return <div className="space-y-5">
@@ -67,6 +69,40 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
             <p className="text-xs font-semibold">Reason / Thesis</p><p className="text-sm mt-1">{result.current_mind?.reason ?? result.reason ?? 'No additional reason returned.'}</p>
             {result.current_mind?.thesis && <p className="text-xs text-slate-500 mt-2">{result.current_mind.thesis}</p>}
           </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold">Option Expression V1</p><p className="text-[11px] text-slate-500 mt-0.5">Downstream of Current Mind; it cannot create direction.</p></div><Badge variant={expression?.status === 'EXPRESSED' ? 'green' : 'default'}>{expression?.status ?? (['BUY_CE', 'BUY_PE'].includes(result.current_mind?.action ?? '') ? 'UNAVAILABLE' : 'NOT REQUIRED')}</Badge></div>
+              {expression?.status === 'EXPRESSED' ? <>
+                <div className="grid grid-cols-2 gap-2">
+                  <Metric label="Contract" value={expression.trading_symbol ?? '—'} />
+                  <Metric label="Strike / Type" value={`${formatNumber(expression.strike)} ${expression.option_type ?? ''}`.trim()} />
+                  <Metric label="Premium reference" value={formatMoney(expression.premium_reference)} />
+                  <Metric label="Lots / Quantity" value={`${expression.lots ?? '—'} / ${expression.quantity ?? '—'}`} />
+                  <Metric label="Estimated outlay" value={formatMoney(expression.estimated_premium_outlay)} />
+                  <Metric label="Expiry" value={formatDate(expression.expiry_date)} />
+                </div>
+                <p className="text-[11px] text-slate-500">PIT contract selection · {expression.premium_reference_basis ?? 'premium reference'} · capital committed remains ₹0.</p>
+              </> : <p className="text-xs text-slate-500">{expression?.reason ?? 'WAIT / NO_TRADE decisions intentionally have no option contract, premium or quantity.'}</p>}
+            </div>
+
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold">Option Premium Memory V1</p><p className="text-[11px] text-slate-500 mt-0.5">Prospective first-seen CRUDEOILM option response memory.</p></div><Badge variant={premiumMemory?.status === 'DESCRIPTIVE_READY' ? 'green' : premiumMemory?.status === 'UNAVAILABLE' ? 'red' : 'blue'}>{premiumMemory?.status ?? 'UNAVAILABLE'}</Badge></div>
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="Immutable snapshots" value={String(premiumMemory?.snapshot_count ?? 0)} />
+                <Metric label="Contracts" value={String(premiumMemory?.contract_count ?? 0)} />
+                <Metric label="Response segments" value={String(premiumMemory?.response_segments ?? 0)} />
+                <Metric label="Trading days" value={String(premiumMemory?.trading_days ?? 0)} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={premiumMemory?.first_seen_immutable ? 'green' : 'default'}>{premiumMemory?.first_seen_immutable ? 'FIRST-SEEN IMMUTABLE' : 'PROVENANCE UNVERIFIED'}</Badge>
+                <Badge variant="default">NO BACKFILL</Badge>
+                <Badge variant="default">DECISION EFFECT: NONE</Badge>
+              </div>
+              <p className="text-[11px] text-slate-500">{premiumMemory?.storage_note ?? premiumMemory?.reason ?? 'Memory becomes available only from genuine prospective observations.'}</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Metric label="Click" value={new Date(result.click_at).toLocaleString()} />
             <Metric label="Latest completed bar" value={result.latest_completed_bar_available_at ? new Date(result.latest_completed_bar_available_at).toLocaleString() : '—'} />
@@ -85,8 +121,8 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
     </Card>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card><CardHeader title="Platform Scope" subtitle="The dashboard now reflects AlphaPilot's actual product scope."/><CardBody className="space-y-3"><Rule title="F&O" detail="Indian equity/index F&O research expressed through option buying."/><Rule title="Commodities" detail="Copper Brain plus active CRUDEOILM Brain development."/><Rule title="Trade expression" detail="BUY CE / BUY PE / WAIT / NO TRADE. No futures execution and no option selling."/></CardBody></Card>
-      <Card><CardHeader title="Decision Discipline" subtitle="Frozen decision logic and shadow research remain separated."/><CardBody className="space-y-3"><Rule title="Current Mind" detail="Primary point-in-time decision layer."/><Rule title="Integrated Direction V2" detail="Shadow-only; decision_effect remains NONE."/><Rule title="Option OI + Premium V1" detail="Registered causal interpretation; votes only through the fixed prospective rule."/></CardBody></Card>
+      <Card><CardHeader title="Platform Scope" subtitle="The dashboard reflects AlphaPilot's actual product scope."/><CardBody className="space-y-3"><Rule title="F&O" detail="Indian equity/index F&O research expressed through option buying."/><Rule title="Commodities" detail="Copper Brain plus active CRUDEOILM Brain development."/><Rule title="Trade expression" detail="BUY CE / BUY PE / WAIT / NO TRADE. No futures execution and no option selling."/></CardBody></Card>
+      <Card><CardHeader title="Decision Discipline" subtitle="Frozen decision logic and shadow research remain separated."/><CardBody className="space-y-3"><Rule title="Current Mind" detail="Primary point-in-time decision layer."/><Rule title="Integrated Direction V2" detail="Shadow-only; decision_effect remains NONE."/><Rule title="Option premium memory" detail="First-seen immutable research memory; descriptive only and not promoted into decisions."/></CardBody></Card>
     </div>
 
     <div className="flex justify-end"><Button variant="ghost" onClick={() => onNavigate('current-mind-audit')}><Microscope size={14} className="inline mr-1.5"/>Open Current Mind Audit</Button></div>
@@ -96,3 +132,6 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
 
 function Rule({ title, detail }: { title: string; detail: string }) { return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-sm font-semibold">{title}</p><p className="text-xs text-slate-500 mt-1">{detail}</p></div>; }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-[10px] text-slate-500">{label}</p><p className="text-sm font-semibold mt-1 break-all">{value}</p></div>; }
+function formatNumber(value?: number) { return value == null ? '—' : String(value); }
+function formatMoney(value?: number) { return value == null ? '—' : `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`; }
+function formatDate(value?: string) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(); }
