@@ -6,8 +6,15 @@ export interface OptionPositioningSummary {
   directional_inference?: string;
   counts_for_direction?: boolean;
   sample_bucket_at?: string;
+  available_at?: string;
   age_minutes?: number;
   put_call_oi_ratio?: number | null;
+  source_table?: string | null;
+  first_seen_immutable?: boolean;
+  provenance_id?: string | null;
+  historical_backfill_used?: boolean;
+  mutable_generic_fallback_used?: boolean;
+  reason?: string;
   model_registration?: Record<string, unknown>;
 }
 

@@ -112,6 +112,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
           <div className="flex flex-wrap gap-2">
             <Badge variant={result.point_in_time ? 'green' : 'red'}>{result.point_in_time ? 'POINT-IN-TIME' : 'PIT REVIEW'}</Badge>
             <Badge variant="blue">OPTIONS ONLY</Badge>
+            <Badge variant={option?.first_seen_immutable ? 'green' : 'red'}>{option?.first_seen_immutable ? 'OPTION PIT: FIRST-SEEN IMMUTABLE' : 'OPTION PIT: UNVERIFIED'}</Badge>
             <Badge variant={safe ? 'green' : 'red'}>{safe ? 'PAPER ONLY · NO BROKER ORDERS' : 'SAFETY REVIEW'}</Badge>
             <Badge variant={result.data?.expensive_180_day_live_refetch_used === false ? 'green' : 'default'}>PIT STORE PATH</Badge>
             <Badge variant="default">V2 DECISION EFFECT: NONE</Badge>
