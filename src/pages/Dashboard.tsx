@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Brain, Microscope, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import { Activity, Brain, Microscope, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader, StatCard } from '@/components/ui';
 import { getHealth } from '@/lib/alphaPilotApi';
-import { generateCrudeMiniResult, type CrudeMiniResult } from '@/lib/crudeMiniApi';
+import {
+  generateCrudeMiniResult,
+  getCrudeMiniResearchStatus,
+  type CrudeMiniResearchStatus,
+  type CrudeMiniResult,
+} from '@/lib/crudeMiniApi';
 import type { PageKey } from '@/components/Sidebar';
 
 type Health = Awaited<ReturnType<typeof getHealth>>;
 
 export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) {
   const [health, setHealth] = useState<Health | null>(null);
+  const [researchStatus, setResearchStatus] = useState<CrudeMiniResearchStatus | null>(null);
   const [result, setResult] = useState<CrudeMiniResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -16,22 +22,38 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setHealth(await getHealth()); } catch (e) { setError(e instanceof Error ? e.message : 'Backend health unavailable'); }
-    finally { setLoading(false); }
+    try {
+      const [nextHealth, nextResearch] = await Promise.all([getHealth(), getCrudeMiniResearchStatus()]);
+      setHealth(nextHealth);
+      setResearchStatus(nextResearch);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'AlphaPilot status unavailable');
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 
   const generate = async () => {
     setGenerating(true); setError(null);
-    try { setResult(await generateCrudeMiniResult()); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to generate AlphaPilot result'); }
-    finally { setGenerating(false); }
+    try {
+      const nextResult = await generateCrudeMiniResult();
+      setResult(nextResult);
+      try { setResearchStatus(await getCrudeMiniResearchStatus()); } catch { /* result remains valid */ }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to generate AlphaPilot result');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const action = result?.current_mind?.action ?? result?.status ?? 'READY';
   const option = result?.data?.option_positioning;
   const expression = result?.execution?.option_expression;
   const premiumMemory = result?.data?.option_premium_memory;
+  const ledger = researchStatus?.episode_ledger;
+  const validation = researchStatus?.validation;
+  const progress = Math.max(0, Math.min(100, validation?.progress_pct ?? 0));
   const safe = result?.execution?.paper_signal_only === true && result?.execution?.live_execution_enabled === false && result?.execution?.broker_order_placement_enabled === false;
 
   return <div className="space-y-5">
@@ -51,9 +73,52 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <StatCard label="Platform" value="F&O + COMMODITY" subvalue="Options trade expression" accent="blue" icon={<ShieldCheck size={20}/>} />
       <StatCard label="Copper Brain" value="DEVELOPED RESEARCH" subvalue="Existing commodity research track" accent="green" />
-      <StatCard label="Crude Oil Mini Brain" value="ACTIVE DEVELOPMENT" subvalue="CRUDEOILM only — never regular CRUDEOIL" accent="amber" />
+      <StatCard label="Crude Oil Mini Brain" value="FROZEN V1 · LEARNING" subvalue="CRUDEOILM prospective research" accent="amber" />
       <StatCard label="Backend" value={health?.ok ? 'ONLINE' : 'CHECKING'} subvalue={health ? `${health.provider} · v${health.version}` : 'Connecting…'} accent={health?.ok ? 'green' : 'amber'} />
     </div>
+
+    <Card>
+      <CardHeader
+        title="Crude Oil Mini — Research Loop"
+        subtitle="Freeze V1 → Capture → Observe outcome → Diagnose → Build memory → Validate → Improve → Holdout → Prospective → Promote"
+        action={<Badge variant={researchStatus?.research_protocol?.status === 'FROZEN' ? 'green' : 'default'}>{researchStatus?.research_protocol?.status ?? 'LOADING'}</Badge>}
+      />
+      <CardBody className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Metric label="Prospective episodes" value={String(ledger?.episode_count ?? 0)} />
+          <Metric label="120m resolved" value={`${validation?.primary_resolved_cases ?? 0} / ${validation?.minimum_ready_cases ?? 20}`} />
+          <Metric label="Outcome rows" value={String(ledger?.outcome_rows ?? 0)} />
+          <Metric label="Missed clean moves" value={String(validation?.primary_missed_clean_moves ?? 0)} />
+        </div>
+
+        <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2"><Activity size={15} className="text-blue-600"/><p className="text-xs font-semibold">Validation readiness</p></div>
+            <span className="text-xs font-semibold">{progress.toFixed(0)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[11px] text-slate-500">{validation?.stage ?? 'ACCUMULATING_PROSPECTIVE_CASES'} · primary horizon {validation?.primary_horizon_minutes ?? 120}m.</p>
+            <Badge variant={validation?.descriptive_validation_ready ? 'green' : 'default'}>{validation?.descriptive_validation_ready ? 'DESCRIPTIVE VALIDATION READY' : 'VALIDATION LOCKED'}</Badge>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Stage label="Freeze V1" value={researchStatus?.pipeline?.freeze_v1} />
+          <Stage label="Capture" value={researchStatus?.pipeline?.capture} />
+          <Stage label="Observe" value={researchStatus?.pipeline?.observe_outcome} />
+          <Stage label="Diagnose" value={researchStatus?.pipeline?.diagnose} />
+          <Stage label="Memory" value={researchStatus?.pipeline?.build_memory} />
+          <Stage label="Validate" value={researchStatus?.pipeline?.validate} />
+          <Stage label="Improve" value={researchStatus?.pipeline?.improve} />
+          <Stage label="Holdout" value={researchStatus?.pipeline?.holdout_test} />
+          <Stage label="Prospective" value={researchStatus?.pipeline?.prospective_test} />
+          <Stage label="Promote" value={researchStatus?.pipeline?.promote} />
+        </div>
+
+        <p className="text-[11px] text-slate-500">Automatic prospective research sampling is scheduled every 30 minutes during the weekday MCX session. It uses the PIT-safe endpoint, creates no broker order, uses no historical backfill, and does not change the frozen V1 decision.</p>
+      </CardBody>
+    </Card>
 
     <Card>
       <CardHeader title="Crude Oil Mini — Manual Market Brain" subtitle="Press anytime. During a closed MCX session AlphaPilot reports MARKET CLOSED instead of fabricating a setup." action={<Badge variant={result?.status === 'EVALUATED' ? 'green' : result?.status === 'DATA_ERROR' ? 'red' : 'blue'}>{action}</Badge>} />
@@ -123,7 +188,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card><CardHeader title="Platform Scope" subtitle="The dashboard reflects AlphaPilot's actual product scope."/><CardBody className="space-y-3"><Rule title="F&O" detail="Indian equity/index F&O research expressed through option buying."/><Rule title="Commodities" detail="Copper Brain plus active CRUDEOILM Brain development."/><Rule title="Trade expression" detail="BUY CE / BUY PE / WAIT / NO TRADE. No futures execution and no option selling."/></CardBody></Card>
-      <Card><CardHeader title="Decision Discipline" subtitle="Frozen decision logic and shadow research remain separated."/><CardBody className="space-y-3"><Rule title="Current Mind" detail="Primary point-in-time decision layer."/><Rule title="Integrated Direction V2" detail="Shadow-only; decision_effect remains NONE."/><Rule title="Option premium memory" detail="First-seen immutable research memory; descriptive only and not promoted into decisions."/></CardBody></Card>
+      <Card><CardHeader title="Decision Discipline" subtitle="Frozen decision logic and shadow research remain separated."/><CardBody className="space-y-3"><Rule title="Current Mind" detail="Primary point-in-time decision layer, frozen as baseline V1."/><Rule title="Integrated Direction V2" detail="Shadow-only; decision_effect remains NONE."/><Rule title="Prospective experience" detail="Only fully resolved prior 120-minute episodes can enter Memory V1; outcomes cannot rank their own analogues."/></CardBody></Card>
     </div>
 
     <div className="flex justify-end"><Button variant="ghost" onClick={() => onNavigate('current-mind-audit')}><Microscope size={14} className="inline mr-1.5"/>Open Current Mind Audit</Button></div>
@@ -131,6 +196,11 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
   </div>;
 }
 
+function Stage({ label, value }: { label: string; value?: string }) {
+  const normalized = value ?? 'UNKNOWN';
+  const variant = normalized === 'COMPLETE' || normalized === 'READY' ? 'green' : normalized === 'ACTIVE' ? 'blue' : 'default';
+  return <Badge variant={variant}>{label}: {normalized}</Badge>;
+}
 function Rule({ title, detail }: { title: string; detail: string }) { return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-sm font-semibold">{title}</p><p className="text-xs text-slate-500 mt-1">{detail}</p></div>; }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-[10px] text-slate-500">{label}</p><p className="text-sm font-semibold mt-1 break-all">{value}</p></div>; }
 function formatNumber(value?: number) { return value == null ? '—' : String(value); }
