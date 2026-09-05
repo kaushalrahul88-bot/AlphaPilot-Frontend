@@ -8,6 +8,10 @@ import {
   type CrudeMiniResearchStatus,
   type CrudeMiniResult,
 } from '@/lib/crudeMiniApi';
+import {
+  getSharedCommodityBrainStatus,
+  type SharedCommodityBrainDashboardStatus,
+} from '@/lib/sharedCommodityBrainApi';
 import type { PageKey } from '@/components/Sidebar';
 
 type Health = Awaited<ReturnType<typeof getHealth>>;
@@ -15,6 +19,7 @@ type Health = Awaited<ReturnType<typeof getHealth>>;
 export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [researchStatus, setResearchStatus] = useState<CrudeMiniResearchStatus | null>(null);
+  const [sharedStatus, setSharedStatus] = useState<SharedCommodityBrainDashboardStatus | null>(null);
   const [result, setResult] = useState<CrudeMiniResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -23,9 +28,14 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [nextHealth, nextResearch] = await Promise.all([getHealth(), getCrudeMiniResearchStatus()]);
+      const [nextHealth, nextResearch, nextShared] = await Promise.all([
+        getHealth(),
+        getCrudeMiniResearchStatus(),
+        getSharedCommodityBrainStatus(),
+      ]);
       setHealth(nextHealth);
       setResearchStatus(nextResearch);
+      setSharedStatus(nextShared);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'AlphaPilot status unavailable');
     } finally {
@@ -39,7 +49,14 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
     try {
       const nextResult = await generateCrudeMiniResult();
       setResult(nextResult);
-      try { setResearchStatus(await getCrudeMiniResearchStatus()); } catch { /* result remains valid */ }
+      try {
+        const [nextResearch, nextShared] = await Promise.all([
+          getCrudeMiniResearchStatus(),
+          getSharedCommodityBrainStatus(),
+        ]);
+        setResearchStatus(nextResearch);
+        setSharedStatus(nextShared);
+      } catch { /* result remains valid */ }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to generate AlphaPilot result');
     } finally {
@@ -55,12 +72,15 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
   const validation = researchStatus?.validation;
   const progress = Math.max(0, Math.min(100, validation?.progress_pct ?? 0));
   const safe = result?.execution?.paper_signal_only === true && result?.execution?.live_execution_enabled === false && result?.execution?.broker_order_placement_enabled === false;
+  const copperShared = sharedStatus?.copper;
+  const crudeShared = sharedStatus?.crude_oil_mini;
+  const parity = crudeShared?.latest_parity;
 
   return <div className="space-y-5">
     <div className="flex items-start justify-between gap-3 flex-wrap">
       <div>
         <div className="flex items-center gap-2"><Brain size={24} className="text-blue-600"/><h1 className="text-xl font-bold text-slate-900 dark:text-white">AlphaPilot Command Center</h1></div>
-        <p className="text-sm text-slate-500 mt-1">F&amp;O + Commodity options intelligence. Copper Brain is retained; Crude Oil Mini Brain is the active commodity development track.</p>
+        <p className="text-sm text-slate-500 mt-1">F&amp;O + Commodity options intelligence. Copper and Crude Oil Mini now share one Commodity Brain core with commodity-specific evidence profiles.</p>
       </div>
       <div className="flex gap-2 flex-wrap">
         <Button variant="ghost" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} className={`inline mr-1.5 ${loading ? 'animate-spin' : ''}`}/>Refresh</Button>
@@ -72,10 +92,76 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
 
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <StatCard label="Platform" value="F&O + COMMODITY" subvalue="Options trade expression" accent="blue" icon={<ShieldCheck size={20}/>} />
-      <StatCard label="Copper Brain" value="DEVELOPED RESEARCH" subvalue="Existing commodity research track" accent="green" />
-      <StatCard label="Crude Oil Mini Brain" value="FROZEN V1 · LEARNING" subvalue="CRUDEOILM prospective research" accent="amber" />
+      <StatCard label="Copper Brain" value="SHARED CORE · PROSPECTIVE" subvalue={`${copperShared?.prospective_evaluations ?? 0} shared-core samples`} accent="green" />
+      <StatCard label="Crude Oil Mini Brain" value="SHARED CORE · PARITY" subvalue={`${crudeShared?.shared_parity_episodes ?? 0} shared-vs-legacy samples`} accent="amber" />
       <StatCard label="Backend" value={health?.ok ? 'ONLINE' : 'CHECKING'} subvalue={health ? `${health.provider} · v${health.version}` : 'Connecting…'} accent={health?.ok ? 'green' : 'amber'} />
     </div>
+
+    <Card>
+      <CardHeader
+        title="Shared Commodity Brain — Prospective Shadow"
+        subtitle="One causal synthesis core. Copper and Crude keep separate commodity profiles, data provenance and prospective evidence streams."
+        action={<Badge variant={sharedStatus?.status === 'ACTIVE' ? 'green' : 'default'}>{sharedStatus?.status ?? 'LOADING'}</Badge>}
+      />
+      <CardBody className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-sm font-semibold">Copper — Shared Brain</p><p className="text-[11px] text-slate-500 mt-0.5">Immutable first-seen PIT board · 15-minute prospective cadence</p></div>
+              <Badge variant={copperShared?.status === 'ACTIVE' ? 'green' : 'blue'}>{prettyStatus(copperShared?.status)}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="Prospective samples" value={String(copperShared?.prospective_evaluations ?? 0)} />
+              <Metric label="Directional" value={String(copperShared?.directional_evaluations ?? 0)} />
+              <Metric label="Abstentions" value={String(copperShared?.abstentions ?? 0)} />
+              <Metric label="Latest thesis" value={formatThesis(copperShared?.latest?.direction, copperShared?.latest?.confidence)} />
+            </div>
+            {copperShared?.latest ? <>
+              <p className="text-[11px] text-slate-500">Latest: {formatTimestamp(copperShared.latest.board_as_of)} · {copperShared.latest.thesis_state ?? '—'}</p>
+              <FamilyLine label="Supporting" families={copperShared.latest.supporting_families} />
+              {Boolean(copperShared.latest.opposing_families?.length) && <FamilyLine label="Opposing" families={copperShared.latest.opposing_families} />}
+            </> : <p className="text-xs text-slate-500">Waiting for the first genuine open-session shared-core sample. No Saturday observation is fabricated.</p>}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={copperShared?.first_seen_immutable ? 'green' : 'default'}>FIRST-SEEN IMMUTABLE</Badge>
+              <Badge variant="default">CURRENT MIND PHASE 1: SEALED</Badge>
+              <Badge variant="default">NO BACKFILL</Badge>
+              <Badge variant="default">DECISION EFFECT: NONE</Badge>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-sm font-semibold">Crude Oil Mini — Shared Brain Parity</p><p className="text-[11px] text-slate-500 mt-0.5">Legacy V2 and shared core use the exact same PIT evidence-family snapshot</p></div>
+              <Badge variant={crudeShared?.status === 'ACTIVE' ? 'green' : 'blue'}>{prettyStatus(crudeShared?.status)}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="Prospective episodes" value={String(crudeShared?.prospective_episodes ?? 0)} />
+              <Metric label="Parity samples" value={String(crudeShared?.shared_parity_episodes ?? 0)} />
+              <Metric label="Legacy V2" value={formatThesis(parity?.legacy?.direction, parity?.legacy?.confidence)} />
+              <Metric label="Shared core" value={formatThesis(parity?.shared?.direction, parity?.shared?.confidence)} />
+            </div>
+            {parity ? <>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={parity.full_thesis_agreement ? 'green' : 'amber'}>{parity.full_thesis_agreement ? 'FULL THESIS AGREEMENT' : 'PARITY DIVERGENCE'}</Badge>
+                <Badge variant="default">{parity.divergence_reason ?? 'NO DIVERGENCE REASON'}</Badge>
+              </div>
+              <p className="text-[11px] text-slate-500">Latest parity: {formatTimestamp(crudeShared?.latest_parity_click)} · Memory in shared core remains Experience context and cannot satisfy the confirmation gate.</p>
+            </> : <p className="text-xs text-slate-500">Existing Crude episodes predate shared parity. The first new prospective click will populate this comparison automatically.</p>}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="green">SAME PIT FAMILY SNAPSHOT</Badge>
+              <Badge variant="default">MEMORY: CONTEXT ONLY</Badge>
+              <Badge variant="default">DECISION EFFECT: NONE</Badge>
+              <Badge variant="default">EXECUTION EFFECT: NONE</Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-3 flex items-start justify-between gap-3 flex-wrap">
+          <div><p className="text-xs font-semibold">Shared causal discipline</p><p className="text-[11px] text-slate-500 mt-1">Minimum {sharedStatus?.shared_core?.minimum_independent_confirmations ?? 2} independent confirmations · no weighted score · correlated evidence is deduplicated · Memory cannot manufacture a second causal vote.</p></div>
+          <div className="flex gap-2 flex-wrap"><Badge variant="green">RESEARCH ONLY</Badge><Badge variant="green">NO BROKER ORDERS</Badge><Badge variant="green">CAPITAL ₹0</Badge></div>
+        </div>
+      </CardBody>
+    </Card>
 
     <Card>
       <CardHeader
@@ -187,8 +273,8 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageKey) => void }) 
     </Card>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card><CardHeader title="Platform Scope" subtitle="The dashboard reflects AlphaPilot's actual product scope."/><CardBody className="space-y-3"><Rule title="F&O" detail="Indian equity/index F&O research expressed through option buying."/><Rule title="Commodities" detail="Copper Brain plus active CRUDEOILM Brain development."/><Rule title="Trade expression" detail="BUY CE / BUY PE / WAIT / NO TRADE. No futures execution and no option selling."/></CardBody></Card>
-      <Card><CardHeader title="Decision Discipline" subtitle="Frozen decision logic and shadow research remain separated."/><CardBody className="space-y-3"><Rule title="Current Mind" detail="Primary point-in-time decision layer, frozen as baseline V1."/><Rule title="Integrated Direction V2" detail="Shadow-only; decision_effect remains NONE."/><Rule title="Prospective experience" detail="Only fully resolved prior 120-minute episodes can enter Memory V1; outcomes cannot rank their own analogues."/></CardBody></Card>
+      <Card><CardHeader title="Platform Scope" subtitle="The dashboard reflects AlphaPilot's actual product scope."/><CardBody className="space-y-3"><Rule title="F&O" detail="Indian equity/index F&O research expressed through option buying."/><Rule title="Commodities" detail="Copper and CRUDEOILM share a common Commodity Brain core with separate profiles."/><Rule title="Trade expression" detail="BUY CE / BUY PE / WAIT / NO TRADE. No futures execution and no option selling."/></CardBody></Card>
+      <Card><CardHeader title="Decision Discipline" subtitle="Frozen decision logic and shadow research remain separated."/><CardBody className="space-y-3"><Rule title="Current Mind" detail="Primary point-in-time decision layer; Copper Phase 1 remains sealed and Crude V1 remains frozen."/><Rule title="Shared Commodity Brain" detail="Shadow-only common causal synthesis. Minimum two independent origins; Memory is context-only."/><Rule title="Prospective experience" detail="Only clean first-seen PIT observations enter prospective research; outcome data never enters the decision-time dashboard feed."/></CardBody></Card>
     </div>
 
     <div className="flex justify-end"><Button variant="ghost" onClick={() => onNavigate('current-mind-audit')}><Microscope size={14} className="inline mr-1.5"/>Open Current Mind Audit</Button></div>
@@ -203,6 +289,10 @@ function Stage({ label, value }: { label: string; value?: string }) {
 }
 function Rule({ title, detail }: { title: string; detail: string }) { return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-sm font-semibold">{title}</p><p className="text-xs text-slate-500 mt-1">{detail}</p></div>; }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3"><p className="text-[10px] text-slate-500">{label}</p><p className="text-sm font-semibold mt-1 break-all">{value}</p></div>; }
+function FamilyLine({ label, families }: { label: string; families?: string[] }) { return <div className="flex items-start gap-2"><span className="text-[10px] text-slate-500 min-w-16 pt-0.5">{label}</span><div className="flex flex-wrap gap-1">{families?.length ? families.map((family) => <Badge key={family} variant="default">{family}</Badge>) : <span className="text-[11px] text-slate-400">None</span>}</div></div>; }
+function prettyStatus(value?: string) { return (value ?? 'LOADING').replaceAll('_', ' '); }
+function formatThesis(direction?: string, confidence?: string) { return `${direction ?? '—'} · ${confidence ?? '—'}`; }
+function formatTimestamp(value?: string | null) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString(); }
 function formatNumber(value?: number) { return value == null ? '—' : String(value); }
 function formatMoney(value?: number) { return value == null ? '—' : `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`; }
 function formatDate(value?: string) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(); }
