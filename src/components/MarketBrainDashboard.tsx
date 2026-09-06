@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, FlaskConical, LineChart, ScanLine } from 'lucide-react';
-import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
+import { Badge, Card, CardBody, CardHeader } from '@/components/ui';
 import { CryptoBtcDashboardPanel } from '@/components/CryptoBtcDashboardPanel';
 import { DashboardMarketSelector } from '@/components/DashboardMarketSelector';
 import { Dashboard } from '@/pages/Dashboard';
@@ -52,7 +52,7 @@ export function MarketBrainDashboard({ onNavigate }: { onNavigate: (page: PageKe
   };
 
   return <div className="space-y-5">
-    <DashboardMarketSelector category={category} instrument={instrument} onSelect={select} />
+    <DashboardMarketSelector category={category} instrument={instrument} selectedSymbols={symbols} onSelect={select} />
     {category === 'FNO' && <FnoWorkspace instrument={instrument} onNavigate={onNavigate} />}
     {category === 'COMMODITIES' && <CommodityWorkspace instrument={instrument} onNavigate={onNavigate} />}
     {category === 'CRYPTO' && <CryptoWorkspace instrument={instrument} />}
@@ -63,7 +63,7 @@ function FnoWorkspace({ instrument, onNavigate }: { instrument: DashboardInstrum
   return <Card>
     <CardHeader
       title={`F&O — ${instrument.name}`}
-      subtitle="The category is now isolated from commodity and crypto research. Existing F&O tools remain available while the per-instrument Market Brain dashboard is wired next."
+      subtitle="F&O is now isolated from commodity and crypto research. Existing F&O tools remain available while the per-instrument Market Brain dashboard is wired next."
       action={<Badge variant="blue">{instrument.symbol}</Badge>}
     />
     <CardBody className="space-y-4">
@@ -85,7 +85,7 @@ function CommodityWorkspace({ instrument, onNavigate }: { instrument: DashboardI
   }
   return <div className="space-y-3">
     <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-      <div><p className="text-sm font-semibold">Commodity workspace · {instrument.name}</p><p className="text-[11px] text-slate-500 mt-0.5">Current live research is wired for Copper and Crude Oil Mini. Shared-brain diagnostics remain visible together where they are intentionally comparative.</p></div>
+      <div><p className="text-sm font-semibold">Commodity workspace · {instrument.name}</p><p className="text-[11px] text-slate-500 mt-0.5">Current live research is wired for Copper and Crude Oil Mini. Shared-brain diagnostics remain visible together only where the comparison is intentional.</p></div>
       <Badge variant="green">CONNECTED</Badge>
     </div>
     <Dashboard onNavigate={onNavigate} />
@@ -111,7 +111,7 @@ function PlannedWorkspace({ category, instrument }: { category: string; instrume
   </Card>;
 }
 
-function WorkspaceAction({ title, detail, icon, onClick }: { title: string; detail: string; icon: React.ReactNode; onClick: () => void }) {
+function WorkspaceAction({ title, detail, icon, onClick }: { title: string; detail: string; icon: ReactNode; onClick: () => void }) {
   return <button type="button" onClick={onClick} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-left hover:border-blue-400 dark:hover:border-blue-700 transition-colors bg-white dark:bg-slate-900">
     <div className="flex items-center justify-between gap-3"><div className="text-blue-600">{icon}</div><ArrowRight size={16} className="text-slate-400"/></div>
     <p className="text-sm font-semibold mt-3 text-slate-900 dark:text-white">{title}</p>
