@@ -5,8 +5,7 @@ import { Topbar, ChatPanel } from '@/components/Topbar';
 import { LiveValidationRecorder } from '@/components/LiveValidationRecorder';
 import { DataQualityRecorder } from '@/components/DataQualityRecorder';
 import { PaperSessionQualityRecorder } from '@/components/PaperSessionQualityRecorder';
-import { CryptoBtcDashboardPanel } from '@/components/CryptoBtcDashboardPanel';
-import { Dashboard } from '@/pages/Dashboard';
+import { MarketBrainDashboard } from '@/components/MarketBrainDashboard';
 import { Portfolio } from '@/pages/Portfolio';
 import { Options } from '@/pages/Options';
 import { PositionSizing } from '@/pages/PositionSizing';
@@ -30,10 +29,11 @@ import { News } from '@/pages/News';
 import { Markets } from '@/pages/Markets';
 import { Alerts } from '@/pages/Alerts';
 import { Settings } from '@/pages/Settings';
+
 function AppContent(){
   const[page,setPage]=useState<PageKey>('dashboard');const[chatOpen,setChatOpen]=useState(false);
   const renderPage=()=>{switch(page){
-    case'dashboard':return <div className="space-y-5"><Dashboard onNavigate={setPage}/><CryptoBtcDashboardPanel/></div>;
+    case'dashboard':return <MarketBrainDashboard onNavigate={setPage}/>;
     case'markets':return <Markets/>;
     case'portfolio':return <Portfolio/>;
     case'options':return <Options/>;
@@ -55,7 +55,7 @@ function AppContent(){
     case'news':return <News/>;
     case'alerts':return <Alerts/>;
     case'settings':return <Settings/>;
-    default:return <div className="space-y-5"><Dashboard onNavigate={setPage}/><CryptoBtcDashboardPanel/></div>;
+    default:return <MarketBrainDashboard onNavigate={setPage}/>;
   }};
   return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex"><LiveValidationRecorder/><DataQualityRecorder/><PaperSessionQualityRecorder/><Sidebar page={page} onNavigate={setPage}/><div className="flex-1 flex flex-col min-w-0"><Topbar onNavigate={setPage} onOpenChat={()=>setChatOpen(true)}/><main className="flex-1 p-4 md:p-6 overflow-x-hidden">{renderPage()}</main></div><ChatPanel open={chatOpen} onClose={()=>setChatOpen(false)}/></div>
 }
