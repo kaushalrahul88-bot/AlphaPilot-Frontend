@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, FlaskConical, LineChart, ScanLine } from 'lucide-react';
 import { Badge, Card, CardBody, CardHeader } from '@/components/ui';
+import { CommodityInstrumentDashboardPanel } from '@/components/CommodityInstrumentDashboardPanel';
 import { CryptoBtcDashboardPanel } from '@/components/CryptoBtcDashboardPanel';
 import { DashboardMarketSelector } from '@/components/DashboardMarketSelector';
-import { Dashboard } from '@/pages/Dashboard';
 import type { PageKey } from '@/components/Sidebar';
 import { getDashboardUniverse } from '@/lib/dashboardUniverseApi';
 import {
@@ -78,7 +78,7 @@ export function MarketBrainDashboard({ onNavigate }: { onNavigate: (page: PageKe
   return <div className="space-y-5">
     <DashboardMarketSelector category={category} instrument={instrument} selectedSymbols={symbols} universe={universe} universeStatus={universeStatus} onSelect={select} />
     {category === 'FNO' && <FnoWorkspace instrument={instrument} onNavigate={onNavigate} universeStatus={universeStatus} />}
-    {category === 'COMMODITIES' && <CommodityWorkspace instrument={instrument} onNavigate={onNavigate} />}
+    {category === 'COMMODITIES' && <CommodityWorkspace instrument={instrument} />}
     {category === 'CRYPTO' && <CryptoWorkspace instrument={instrument} />}
   </div>;
 }
@@ -103,15 +103,10 @@ function FnoWorkspace({ instrument, onNavigate, universeStatus }: { instrument: 
   </Card>;
 }
 
-function CommodityWorkspace({ instrument, onNavigate }: { instrument: DashboardInstrument; onNavigate: (page: PageKey) => void }) {
+function CommodityWorkspace({ instrument }: { instrument: DashboardInstrument }) {
   if (instrument.state !== 'CONNECTED') return <PlannedWorkspace category="Commodities" instrument={instrument} />;
-  return <div className="space-y-3">
-    <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-      <div><p className="text-sm font-semibold">Commodity workspace · {instrument.name}</p><p className="text-[11px] text-slate-500 mt-0.5">Current live research is wired for Copper and Crude Oil Mini. Shared-brain diagnostics remain visible together only where the comparison is intentional.</p></div>
-      <Badge variant="green">CONNECTED</Badge>
-    </div>
-    <Dashboard onNavigate={onNavigate} />
-  </div>;
+  if (instrument.symbol !== 'COPPER' && instrument.symbol !== 'CRUDEOILM') return <PlannedWorkspace category="Commodities" instrument={instrument} />;
+  return <CommodityInstrumentDashboardPanel instrument={instrument} />;
 }
 
 function CryptoWorkspace({ instrument }: { instrument: DashboardInstrument }) {
