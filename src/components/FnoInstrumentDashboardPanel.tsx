@@ -6,7 +6,15 @@ import type { DashboardInstrument } from '@/lib/dashboardUniverse';
 
 const TIMEFRAMES = ['5m', '15m', '1h'] as const;
 
-export function FnoInstrumentDashboardPanel({ instrument }: { instrument: DashboardInstrument }) {
+export function FnoInstrumentDashboardPanel({
+  instrument,
+  onOpenScanner,
+  onOpenBacktest,
+}: {
+  instrument: DashboardInstrument;
+  onOpenScanner: () => void;
+  onOpenBacktest: () => void;
+}) {
   const [result, setResult] = useState<FnoScanResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +139,11 @@ export function FnoInstrumentDashboardPanel({ instrument }: { instrument: Dashbo
         <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-3 flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-start gap-2"><ShieldCheck size={16} className="text-blue-600 mt-0.5"/><div><p className="text-xs font-semibold">Dashboard safety boundary</p><p className="text-[11px] text-slate-500 mt-1">Read/scan only · no broker order · no automatic capital · Options expression only. Market data comes from the backend provider, not the frontend mock market-data module.</p></div></div>
           <div className="flex gap-2 flex-wrap"><Badge variant="green">NO LIVE ORDER</Badge><Badge variant="green">CAPITAL ₹0</Badge></div>
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="ghost" onClick={onOpenScanner}>Open Full F&O Scanner</Button>
+          <Button variant="ghost" onClick={onOpenBacktest}>Open F&O Backtest</Button>
         </div>
       </CardBody>
     </Card>
