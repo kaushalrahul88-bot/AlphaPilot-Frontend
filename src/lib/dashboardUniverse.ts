@@ -8,7 +8,11 @@ export interface DashboardInstrument {
   name: string;
   category: MarketCategory;
   state: WorkspaceState;
+  exchange?: string;
+  segment?: string;
 }
+
+export type DashboardUniverse = Record<MarketCategory, DashboardInstrument[]>;
 
 const fnoInstruments: DashboardInstrument[] = INSTRUMENTS
   .filter((instrument) => instrument.type === 'INDEX' || instrument.type === 'STOCK')
@@ -17,6 +21,8 @@ const fnoInstruments: DashboardInstrument[] = INSTRUMENTS
     name: instrument.name,
     category: 'FNO' as const,
     state: 'AVAILABLE' as const,
+    exchange: 'NSE',
+    segment: 'FNO',
   }));
 
 const commodityInstruments: DashboardInstrument[] = [
@@ -34,7 +40,7 @@ const cryptoInstruments: DashboardInstrument[] = [
   { symbol: 'XAUT', name: 'Tether Gold', category: 'CRYPTO', state: 'PLANNED' },
 ];
 
-export const DASHBOARD_UNIVERSE: Record<MarketCategory, DashboardInstrument[]> = {
+export const DASHBOARD_UNIVERSE: DashboardUniverse = {
   FNO: fnoInstruments,
   COMMODITIES: commodityInstruments,
   CRYPTO: cryptoInstruments,
@@ -46,11 +52,36 @@ export const MARKET_CATEGORY_LABELS: Record<MarketCategory, string> = {
   CRYPTO: 'Crypto',
 };
 
-export function defaultInstrument(category: MarketCategory): DashboardInstrument {
+export function defaultInstrument(category: MarketCategory, universe: DashboardUniverse = DASHBOARD_UNIVERSE): DashboardInstrument {
   const preferred = category === 'COMMODITIES' ? 'COPPER' : category === 'CRYPTO' ? 'BTC' : 'NIFTY';
-  return DASHBOARD_UNIVERSE[category].find((item) => item.symbol === preferred) ?? DASHBOARD_UNIVERSE[category][0];
+  const rows = universe[category]?.length ? universe[category] : DASHBOARD_UNIVERSE[category];
+  return rows.find((item) => item.symbol === preferred) ?? rows[0];
 }
 
-export function findDashboardInstrument(category: MarketCategory, symbol: string): DashboardInstrument {
-  return DASHBOARD_UNIVERSE[category].find((item) => item.symbol === symbol) ?? defaultInstrument(category);
+export function findDashboardInstrument(category: MarketCategory, symbol: string, universe: DashboardUniverse = DASHBOARD_UNIVERSE): DashboardInstrument {
+  const rows = universe[category]?.length ? universe[category] : DASHBOARD_UNIVERSE[category];
+  return rows.find((item) => item.symbol === symbol) ?? defaultInstrument(category, universe);
+}
+
+export function withRemoteCategory(
+  universe: DashboardUniverse,
+  category: MarketCategory,
+  rows: Array<Partial<DashboardInstrument>> | undefined,
+): DashboardUniverse {
+  if (!rows?.length) return universe;
+  const normalized = rows.flatMap((row): DashboardInstrument[] => {
+    const symbol = String(row.symbol ?? '').trim().toUpperCase();
+    if (!symbol) return [];
+    const rawState = String(row.state ?? 'AVAILABLE').toUpperCase();
+    const state: WorkspaceState = rawState === 'CONNECTED' || rawState === 'PLANNED' ? rawState : 'AVAILABLE';
+    return [{
+      symbol,
+      name: String(row.name ?? symbol).trim() || symbol,
+      category,
+      state,
+      exchange: row.exchange ? String(row.exchange) : undefined,
+      segment: row.segment ? String(row.segment) : undefined,
+    }];
+  });
+  return normalized.length ? { ...universe, [category]: normalized } : universe;
 }
