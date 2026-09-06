@@ -29,6 +29,8 @@ export function DashboardMarketSelector({
   universeStatus?: string;
   onSelect: (category: MarketCategory, symbol: string) => void;
 }) {
+  const liveUniverse = universeStatus === 'ACTIVE' || universeStatus === 'LIVE UNIVERSE';
+
   return (
     <Card>
       <CardBody className="space-y-4">
@@ -38,7 +40,7 @@ export function DashboardMarketSelector({
             <p className="text-xs text-slate-500 mt-1">Choose a market category, then choose the instrument AlphaPilot should show.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {universeStatus && <Badge variant={universeStatus === 'ACTIVE' ? 'green' : 'amber'}>{universeStatus}</Badge>}
+            {universeStatus && <Badge variant={liveUniverse ? 'green' : 'amber'}>{universeStatus}</Badge>}
             <Badge variant={instrument.state === 'CONNECTED' ? 'green' : instrument.state === 'AVAILABLE' ? 'blue' : 'default'}>{instrument.state}</Badge>
             <Badge variant="default">{instrument.symbol}</Badge>
           </div>
