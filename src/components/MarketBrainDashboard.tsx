@@ -1,14 +1,17 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, FlaskConical, LineChart, ScanLine } from 'lucide-react';
 import { Badge, Card, CardBody, CardHeader } from '@/components/ui';
 import { CryptoBtcDashboardPanel } from '@/components/CryptoBtcDashboardPanel';
 import { DashboardMarketSelector } from '@/components/DashboardMarketSelector';
 import { Dashboard } from '@/pages/Dashboard';
 import type { PageKey } from '@/components/Sidebar';
+import { getDashboardUniverse } from '@/lib/dashboardUniverseApi';
 import {
+  DASHBOARD_UNIVERSE,
   defaultInstrument,
   findDashboardInstrument,
   type DashboardInstrument,
+  type DashboardUniverse,
   type MarketCategory,
 } from '@/lib/dashboardUniverse';
 
@@ -23,26 +26,47 @@ function savedCategory(): MarketCategory {
   return 'COMMODITIES';
 }
 
-function savedInstrument(category: MarketCategory): DashboardInstrument {
+function savedSymbol(category: MarketCategory): string {
   try {
     const symbol = window.localStorage.getItem(`${SYMBOL_KEY_PREFIX}${category}`);
-    if (symbol) return findDashboardInstrument(category, symbol);
+    if (symbol) return symbol;
   } catch { /* localStorage may be unavailable */ }
-  return defaultInstrument(category);
+  return defaultInstrument(category).symbol;
 }
 
 export function MarketBrainDashboard({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const [category, setCategory] = useState<MarketCategory>(() => savedCategory());
   const [symbols, setSymbols] = useState<Record<MarketCategory, string>>(() => ({
-    FNO: savedInstrument('FNO').symbol,
-    COMMODITIES: savedInstrument('COMMODITIES').symbol,
-    CRYPTO: savedInstrument('CRYPTO').symbol,
+    FNO: savedSymbol('FNO'),
+    COMMODITIES: savedSymbol('COMMODITIES'),
+    CRYPTO: savedSymbol('CRYPTO'),
   }));
+  const [universe, setUniverse] = useState<DashboardUniverse>(DASHBOARD_UNIVERSE);
+  const [universeStatus, setUniverseStatus] = useState('LOADING UNIVERSE');
 
-  const instrument = useMemo(() => findDashboardInstrument(category, symbols[category]), [category, symbols]);
+  useEffect(() => {
+    let active = true;
+    void getDashboardUniverse()
+      .then((loaded) => {
+        if (!active) return;
+        setUniverse(loaded.universe);
+        setUniverseStatus(loaded.status === 'ACTIVE' ? 'LIVE UNIVERSE' : loaded.status.replaceAll('_', ' '));
+        setSymbols((current) => ({
+          FNO: findDashboardInstrument('FNO', current.FNO, loaded.universe).symbol,
+          COMMODITIES: findDashboardInstrument('COMMODITIES', current.COMMODITIES, loaded.universe).symbol,
+          CRYPTO: findDashboardInstrument('CRYPTO', current.CRYPTO, loaded.universe).symbol,
+        }));
+      })
+      .catch(() => {
+        if (active) setUniverseStatus('FALLBACK UNIVERSE');
+      });
+    return () => { active = false; };
+  }, []);
+
+  const instrument = useMemo(() => findDashboardInstrument(category, symbols[category], universe), [category, symbols, universe]);
 
   const select = (nextCategory: MarketCategory, symbol: string) => {
-    const nextInstrument = findDashboardInstrument(nextCategory, symbol);
+    const nextInstrument = findDashboardInstrument(nextCategory, symbol, universe);
     setCategory(nextCategory);
     setSymbols((current) => ({ ...current, [nextCategory]: nextInstrument.symbol }));
     try {
@@ -52,19 +76,19 @@ export function MarketBrainDashboard({ onNavigate }: { onNavigate: (page: PageKe
   };
 
   return <div className="space-y-5">
-    <DashboardMarketSelector category={category} instrument={instrument} selectedSymbols={symbols} onSelect={select} />
-    {category === 'FNO' && <FnoWorkspace instrument={instrument} onNavigate={onNavigate} />}
+    <DashboardMarketSelector category={category} instrument={instrument} selectedSymbols={symbols} universe={universe} universeStatus={universeStatus} onSelect={select} />
+    {category === 'FNO' && <FnoWorkspace instrument={instrument} onNavigate={onNavigate} universeStatus={universeStatus} />}
     {category === 'COMMODITIES' && <CommodityWorkspace instrument={instrument} onNavigate={onNavigate} />}
     {category === 'CRYPTO' && <CryptoWorkspace instrument={instrument} />}
   </div>;
 }
 
-function FnoWorkspace({ instrument, onNavigate }: { instrument: DashboardInstrument; onNavigate: (page: PageKey) => void }) {
+function FnoWorkspace({ instrument, onNavigate, universeStatus }: { instrument: DashboardInstrument; onNavigate: (page: PageKey) => void; universeStatus: string }) {
   return <Card>
     <CardHeader
       title={`F&O — ${instrument.name}`}
-      subtitle="F&O is now isolated from commodity and crypto research. Existing F&O tools remain available while the per-instrument Market Brain dashboard is wired next."
-      action={<Badge variant="blue">{instrument.symbol}</Badge>}
+      subtitle="Current NSE derivatives underlyings are loaded from Groww's documented instrument master. F&O remains isolated from Commodity and Crypto research."
+      action={<div className="flex gap-2"><Badge variant={universeStatus === 'LIVE UNIVERSE' ? 'green' : 'amber'}>{universeStatus}</Badge><Badge variant="blue">{instrument.symbol}</Badge></div>}
     />
     <CardBody className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -73,16 +97,14 @@ function FnoWorkspace({ instrument, onNavigate }: { instrument: DashboardInstrum
         <WorkspaceAction title="Backtest" detail="Historical strategy validation" icon={<FlaskConical size={18}/>} onClick={() => onNavigate('backtest')} />
       </div>
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-xs text-slate-500">
-        Selected instrument: <span className="font-semibold text-slate-800 dark:text-slate-200">{instrument.symbol} — {instrument.name}</span>. No commodity or crypto result is shown in this workspace.
+        Selected underlying: <span className="font-semibold text-slate-800 dark:text-slate-200">{instrument.symbol} — {instrument.name}</span>. The dropdown selection does not create a trade; each Market Brain route still has to pass its own evidence and data gates.
       </div>
     </CardBody>
   </Card>;
 }
 
 function CommodityWorkspace({ instrument, onNavigate }: { instrument: DashboardInstrument; onNavigate: (page: PageKey) => void }) {
-  if (instrument.state !== 'CONNECTED') {
-    return <PlannedWorkspace category="Commodities" instrument={instrument} />;
-  }
+  if (instrument.state !== 'CONNECTED') return <PlannedWorkspace category="Commodities" instrument={instrument} />;
   return <div className="space-y-3">
     <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
       <div><p className="text-sm font-semibold">Commodity workspace · {instrument.name}</p><p className="text-[11px] text-slate-500 mt-0.5">Current live research is wired for Copper and Crude Oil Mini. Shared-brain diagnostics remain visible together only where the comparison is intentional.</p></div>
@@ -93,19 +115,17 @@ function CommodityWorkspace({ instrument, onNavigate }: { instrument: DashboardI
 }
 
 function CryptoWorkspace({ instrument }: { instrument: DashboardInstrument }) {
-  if (instrument.symbol !== 'BTC' || instrument.state !== 'CONNECTED') {
-    return <PlannedWorkspace category="Crypto" instrument={instrument} />;
-  }
+  if (instrument.symbol !== 'BTC' || instrument.state !== 'CONNECTED') return <PlannedWorkspace category="Crypto" instrument={instrument} />;
   return <CryptoBtcDashboardPanel />;
 }
 
 function PlannedWorkspace({ category, instrument }: { category: string; instrument: DashboardInstrument }) {
   return <Card>
-    <CardHeader title={`${category} — ${instrument.name}`} subtitle="Instrument is present in the new dashboard universe, but its live AlphaPilot research pipeline is not connected yet." action={<Badge variant="default">PLANNED</Badge>} />
+    <CardHeader title={`${category} — ${instrument.name}`} subtitle="Instrument is present in the dashboard universe, but its live AlphaPilot research pipeline is not connected yet." action={<Badge variant="default">PLANNED</Badge>} />
     <CardBody>
       <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-6 text-center">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{instrument.symbol} is ready in navigation</p>
-        <p className="text-xs text-slate-500 mt-1">AlphaPilot will not display mock live results for this instrument. We can connect its genuine data + Market Brain pipeline when we expand this category.</p>
+        <p className="text-xs text-slate-500 mt-1">AlphaPilot will not display mock live results for this instrument. Its genuine data and Market Brain pipeline must be connected before results appear here.</p>
       </div>
     </CardBody>
   </Card>;
