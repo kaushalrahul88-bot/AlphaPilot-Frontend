@@ -70,7 +70,6 @@ export function DashboardMarketSelector({
                   <select
                     aria-label={`${MARKET_CATEGORY_LABELS[key]} instrument`}
                     value={selectedInstrument.symbol}
-                    onFocus={() => { if (!active) onSelect(key, selectedInstrument.symbol); }}
                     onChange={(event) => onSelect(key, event.target.value)}
                     className="w-full appearance-none rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 pr-9 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
