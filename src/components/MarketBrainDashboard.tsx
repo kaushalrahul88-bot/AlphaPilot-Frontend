@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowRight, FlaskConical, LineChart, ScanLine } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge, Card, CardBody, CardHeader } from '@/components/ui';
 import { CommodityInstrumentDashboardPanel } from '@/components/CommodityInstrumentDashboardPanel';
 import { CryptoBtcDashboardPanel } from '@/components/CryptoBtcDashboardPanel';
 import { DashboardMarketSelector } from '@/components/DashboardMarketSelector';
+import { FnoInstrumentDashboardPanel } from '@/components/FnoInstrumentDashboardPanel';
 import type { PageKey } from '@/components/Sidebar';
 import { getDashboardUniverse } from '@/lib/dashboardUniverseApi';
 import {
@@ -77,30 +77,33 @@ export function MarketBrainDashboard({ onNavigate }: { onNavigate: (page: PageKe
 
   return <div className="space-y-5">
     <DashboardMarketSelector category={category} instrument={instrument} selectedSymbols={symbols} universe={universe} universeStatus={universeStatus} onSelect={select} />
-    {category === 'FNO' && <FnoWorkspace instrument={instrument} onNavigate={onNavigate} universeStatus={universeStatus} />}
+    {category === 'FNO' && <FnoWorkspace instrument={instrument} onNavigate={onNavigate} />}
     {category === 'COMMODITIES' && <CommodityWorkspace instrument={instrument} />}
     {category === 'CRYPTO' && <CryptoWorkspace instrument={instrument} />}
   </div>;
 }
 
-function FnoWorkspace({ instrument, onNavigate, universeStatus }: { instrument: DashboardInstrument; onNavigate: (page: PageKey) => void; universeStatus: string }) {
-  return <Card>
-    <CardHeader
-      title={`F&O — ${instrument.name}`}
-      subtitle="Current NSE derivatives underlyings are loaded from Groww's documented instrument master. F&O remains isolated from Commodity and Crypto research."
-      action={<div className="flex gap-2"><Badge variant={universeStatus === 'LIVE UNIVERSE' ? 'green' : 'amber'}>{universeStatus}</Badge><Badge variant="blue">{instrument.symbol}</Badge></div>}
-    />
-    <CardBody className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <WorkspaceAction title="Markets" detail="Watchlists and instrument view" icon={<LineChart size={18}/>} onClick={() => onNavigate('markets')} />
-        <WorkspaceAction title="Trade Scanner" detail="F&O setup discovery" icon={<ScanLine size={18}/>} onClick={() => onNavigate('trade-scanner')} />
-        <WorkspaceAction title="Backtest" detail="Historical strategy validation" icon={<FlaskConical size={18}/>} onClick={() => onNavigate('backtest')} />
-      </div>
-      <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-xs text-slate-500">
-        Selected underlying: <span className="font-semibold text-slate-800 dark:text-slate-200">{instrument.symbol} — {instrument.name}</span>. The dropdown selection does not create a trade; each Market Brain route still has to pass its own evidence and data gates.
-      </div>
-    </CardBody>
-  </Card>;
+function FnoWorkspace({ instrument, onNavigate }: { instrument: DashboardInstrument; onNavigate: (page: PageKey) => void }) {
+  if (instrument.state !== 'CONNECTED') {
+    return <Card>
+      <CardHeader
+        title={`F&O — ${instrument.name}`}
+        subtitle="This is a current NSE F&O underlying from Groww's live instrument master, but AlphaPilot's existing live scanner does not yet map this symbol."
+        action={<div className="flex gap-2"><Badge variant="blue">CURRENT F&O</Badge><Badge variant="default">CATALOG ONLY</Badge></div>}
+      />
+      <CardBody>
+        <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-6 text-center">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{instrument.symbol} is available in the F&O universe</p>
+          <p className="text-xs text-slate-500 mt-1">No frontend mock quote or fabricated option setup is shown. The live Groww scan mapping must be added before this instrument gets a connected Market Brain panel.</p>
+        </div>
+      </CardBody>
+    </Card>;
+  }
+  return <FnoInstrumentDashboardPanel
+    instrument={instrument}
+    onOpenScanner={() => onNavigate('trade-scanner')}
+    onOpenBacktest={() => onNavigate('backtest')}
+  />;
 }
 
 function CommodityWorkspace({ instrument }: { instrument: DashboardInstrument }) {
@@ -124,12 +127,4 @@ function PlannedWorkspace({ category, instrument }: { category: string; instrume
       </div>
     </CardBody>
   </Card>;
-}
-
-function WorkspaceAction({ title, detail, icon, onClick }: { title: string; detail: string; icon: ReactNode; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-left hover:border-blue-400 dark:hover:border-blue-700 transition-colors bg-white dark:bg-slate-900">
-    <div className="flex items-center justify-between gap-3"><div className="text-blue-600">{icon}</div><ArrowRight size={16} className="text-slate-400"/></div>
-    <p className="text-sm font-semibold mt-3 text-slate-900 dark:text-white">{title}</p>
-    <p className="text-[11px] text-slate-500 mt-1">{detail}</p>
-  </button>;
 }
