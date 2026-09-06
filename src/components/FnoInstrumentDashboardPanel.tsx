@@ -6,6 +6,8 @@ import type { DashboardInstrument } from '@/lib/dashboardUniverse';
 
 const TIMEFRAMES = ['5m', '15m', '1h'] as const;
 
+type UnknownRecord = Record<string, unknown>;
+
 export function FnoInstrumentDashboardPanel({
   instrument,
   onOpenScanner,
@@ -158,8 +160,8 @@ function NoteGroup({ label, rows }: { label: string; rows: string[] }) {
   return <div><p className="font-semibold text-slate-700 dark:text-slate-300">{label}</p><div className="mt-1 space-y-1 text-slate-500">{rows.map((row, index) => <p key={`${label}-${index}-${row}`}>• {row}</p>)}</div></div>;
 }
 
-function asRecord(value: unknown): Record<string, any> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
+function asRecord(value: unknown): UnknownRecord {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as UnknownRecord : {};
 }
 
 function firstValue(...values: unknown[]): unknown {
