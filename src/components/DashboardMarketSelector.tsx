@@ -1,8 +1,9 @@
-import { Bitcoin, ChevronDown, Landmark, Waves } from 'lucide-react';
+import { Bitcoin, ChevronDown, Landmark, Waves, type LucideIcon } from 'lucide-react';
 import { Badge, Card, CardBody } from '@/components/ui';
 import {
   DASHBOARD_UNIVERSE,
   MARKET_CATEGORY_LABELS,
+  findDashboardInstrument,
   type DashboardInstrument,
   type MarketCategory,
 } from '@/lib/dashboardUniverse';
@@ -11,15 +12,17 @@ const CATEGORY_META = {
   FNO: { icon: Landmark, subtitle: 'Indices and equity F&O' },
   COMMODITIES: { icon: Waves, subtitle: 'MCX commodity options research' },
   CRYPTO: { icon: Bitcoin, subtitle: 'Crypto Options research' },
-} satisfies Record<MarketCategory, { icon: typeof Landmark; subtitle: string }>;
+} satisfies Record<MarketCategory, { icon: LucideIcon; subtitle: string }>;
 
 export function DashboardMarketSelector({
   category,
   instrument,
+  selectedSymbols,
   onSelect,
 }: {
   category: MarketCategory;
   instrument: DashboardInstrument;
+  selectedSymbols: Record<MarketCategory, string>;
   onSelect: (category: MarketCategory, symbol: string) => void;
 }) {
   return (
@@ -40,7 +43,7 @@ export function DashboardMarketSelector({
           {(Object.keys(DASHBOARD_UNIVERSE) as MarketCategory[]).map((key) => {
             const active = category === key;
             const Icon = CATEGORY_META[key].icon;
-            const activeInstrument = active ? instrument : DASHBOARD_UNIVERSE[key][0];
+            const selectedInstrument = findDashboardInstrument(key, selectedSymbols[key]);
             return (
               <div
                 key={key}
@@ -48,7 +51,7 @@ export function DashboardMarketSelector({
               >
                 <button
                   type="button"
-                  onClick={() => onSelect(key, activeInstrument.symbol)}
+                  onClick={() => onSelect(key, selectedInstrument.symbol)}
                   className="w-full text-left"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -66,8 +69,8 @@ export function DashboardMarketSelector({
                 <div className="relative mt-3">
                   <select
                     aria-label={`${MARKET_CATEGORY_LABELS[key]} instrument`}
-                    value={activeInstrument.symbol}
-                    onFocus={() => { if (!active) onSelect(key, activeInstrument.symbol); }}
+                    value={selectedInstrument.symbol}
+                    onFocus={() => { if (!active) onSelect(key, selectedInstrument.symbol); }}
                     onChange={(event) => onSelect(key, event.target.value)}
                     className="w-full appearance-none rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 pr-9 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
