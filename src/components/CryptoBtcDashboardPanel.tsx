@@ -3,12 +3,14 @@ import { Activity, FlaskConical, Play, RefreshCw, Zap } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import {
   getCryptoBtcDashboardStatus,
+  getCryptoBtcUnderlyingBacktestJob,
   generateCryptoBtcLiveShadowSetup,
   runCryptoBtcUnderlyingBacktest,
   type CryptoBtcDashboardStatus,
   type CryptoBtcShadowClick,
   type CryptoBtcLiveShadowActionResult,
   type CryptoBtcUnderlyingBacktestResult,
+  type CryptoBtcBacktestJob,
 } from '@/lib/cryptoBtcApi';
 
 export function CryptoBtcDashboardPanel() {
@@ -18,6 +20,7 @@ export function CryptoBtcDashboardPanel() {
   const [backtestRunning, setBacktestRunning] = useState(false);
   const [liveRunning, setLiveRunning] = useState(false);
   const [backtest, setBacktest] = useState<CryptoBtcUnderlyingBacktestResult | null>(null);
+  const [backtestJob, setBacktestJob] = useState<CryptoBtcBacktestJob | null>(null);
   const [liveAction, setLiveAction] = useState<CryptoBtcLiveShadowActionResult | null>(null);
 
   const refresh = useCallback(async () => {
@@ -36,7 +39,17 @@ export function CryptoBtcDashboardPanel() {
     setBacktestRunning(true);
     setError(null);
     try {
-      setBacktest(await runCryptoBtcUnderlyingBacktest());
+      setBacktest(null);
+      let job = await runCryptoBtcUnderlyingBacktest();
+      setBacktestJob(job);
+      while (job.status === 'RUNNING') {
+        await new Promise(resolve => window.setTimeout(resolve, 1_000));
+        job = await getCryptoBtcUnderlyingBacktestJob(job.job_id);
+        setBacktestJob(job);
+      }
+      if (job.status === 'FAILED') throw new Error(job.error || 'BTC underlying backtest failed');
+      if (!job.result) throw new Error('BTC backtest completed without a result');
+      setBacktest(job.result);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'BTC underlying backtest failed');
     } finally {
@@ -87,6 +100,7 @@ export function CryptoBtcDashboardPanel() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2"><Badge variant="green">SERVER TIME</Badge><Badge variant="green">SHADOW ONLY</Badge><Badge variant="default">NO BROKER ORDER</Badge><Badge variant="default">CAPITAL ₹0</Badge></div>
+        {backtestRunning && <BacktestProgress job={backtestJob} />}
       </div>
 
       {liveAction?.result && <LiveActionResult action={liveAction} />}
@@ -127,6 +141,19 @@ export function CryptoBtcDashboardPanel() {
       {outcome?.large_move_missed_during_abstention && <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">Latest NO TRADE was followed by a large move. AlphaPilot has marked this exact frozen sample for diagnostic review instead of rewriting the original decision.</div>}
     </CardBody>
   </Card>;
+}
+
+function BacktestProgress({ job }: { job: CryptoBtcBacktestJob | null }) {
+  const completed = job?.completed_clicks ?? 0;
+  const total = job?.total_clicks ?? 96;
+  const pct = Math.max(0, Math.min(100, job?.progress_pct ?? 0));
+  const loadingData = job?.phase === 'LOADING_ARCHIVED_INPUTS' || job?.phase === 'QUEUED';
+  return <div className="space-y-1.5" role="status" aria-live="polite">
+    <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300"><span>{pretty(job?.phase || 'STARTING')}</span><span>{loadingData ? 'Loading market data…' : `${completed} / ${total} clicks · ${pct.toFixed(1)}%`}</span></div>
+    <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+      <div className={`h-full rounded-full bg-blue-600 transition-all duration-500 ${loadingData ? 'animate-pulse' : ''}`} style={{ width: loadingData ? '8%' : `${pct}%` }} />
+    </div>
+  </div>;
 }
 
 function LiveActionResult({ action }: { action: CryptoBtcLiveShadowActionResult }) {
