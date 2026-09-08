@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, FlaskConical, Play, RefreshCw, Zap } from 'lucide-react';
+import { Activity, FlaskConical, History, Play, RefreshCw, Zap } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import {
   getCryptoBtcDashboardStatus,
+  getCryptoBtcUnderlyingBacktestHistory,
   getCryptoBtcUnderlyingBacktestJob,
   generateCryptoBtcLiveShadowSetup,
   runCryptoBtcUnderlyingBacktest,
@@ -24,6 +25,11 @@ export function CryptoBtcDashboardPanel() {
   const [liveRunning, setLiveRunning] = useState(false);
   const [backtest, setBacktest] = useState<CryptoBtcUnderlyingBacktestResult | null>(loadLastBacktestResult);
   const [backtestJob, setBacktestJob] = useState<CryptoBtcBacktestJob | null>(null);
+  const [backtestHistory, setBacktestHistory] = useState<CryptoBtcBacktestJob[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyOpeningId, setHistoryOpeningId] = useState<string | null>(null);
+  const [selectedBacktestJobId, setSelectedBacktestJobId] = useState<string | null>(null);
   const [liveAction, setLiveAction] = useState<CryptoBtcLiveShadowActionResult | null>(null);
 
   const refresh = useCallback(async () => {
@@ -38,12 +44,26 @@ export function CryptoBtcDashboardPanel() {
     }
   }, []);
 
+  const refreshHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const response = await getCryptoBtcUnderlyingBacktestHistory(50);
+      setBacktestHistory(response.items ?? []);
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : 'BTC backtest history unavailable');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   const runBacktest = useCallback(async () => {
     setBacktestRunning(true);
     setError(null);
     try {
       let job = await runCryptoBtcUnderlyingBacktest();
       setBacktestJob(job);
+      setSelectedBacktestJobId(job.job_id);
       while (job.status === 'RUNNING') {
         await new Promise(resolve => window.setTimeout(resolve, 1_000));
         job = await getCryptoBtcUnderlyingBacktestJob(job.job_id);
@@ -53,10 +73,32 @@ export function CryptoBtcDashboardPanel() {
       if (!job.result) throw new Error('BTC backtest completed without a result');
       const visibleResult = rememberBacktestResult(job.result);
       setBacktest(visibleResult);
+      if (job.history_persisted === false) {
+        setHistoryError(job.history_error || 'Backtest completed, but its persistent history write failed.');
+      }
+      await refreshHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'BTC underlying backtest failed');
+      await refreshHistory();
     } finally {
       setBacktestRunning(false);
+    }
+  }, [refreshHistory]);
+
+  const openHistoricalBacktest = useCallback(async (jobId: string) => {
+    setHistoryOpeningId(jobId);
+    setHistoryError(null);
+    try {
+      const job = await getCryptoBtcUnderlyingBacktestJob(jobId);
+      if (job.status === 'FAILED') throw new Error(job.error || 'This backtest failed and has no scorecard.');
+      if (!job.result) throw new Error('This backtest has no completed result yet.');
+      setBacktest(rememberBacktestResult(job.result));
+      setBacktestJob(job);
+      setSelectedBacktestJobId(job.job_id);
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : 'Stored BTC backtest could not be opened');
+    } finally {
+      setHistoryOpeningId(null);
     }
   }, []);
 
@@ -75,9 +117,13 @@ export function CryptoBtcDashboardPanel() {
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
+    void refreshHistory();
+    const timer = window.setInterval(() => {
+      void refresh();
+      void refreshHistory();
+    }, 60_000);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, refreshHistory]);
 
   useEffect(() => {
     if (backtest) backtestResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -93,7 +139,7 @@ export function CryptoBtcDashboardPanel() {
     <CardHeader
       title="Crypto — BTC Options Prospective Proof"
       subtitle="Genuine Delta India Options snapshots + frozen BTC Market Brain decisions + later 4-hour outcomes. Research/shadow only."
-      action={<div className="flex items-center gap-2"><Badge variant={status?.status === 'ACTIVE' ? 'green' : 'default'}>{status?.status ?? 'LOADING'}</Badge><Button variant="ghost" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'animate-spin' : ''}/></Button></div>}
+      action={<div className="flex items-center gap-2"><Badge variant={status?.status === 'ACTIVE' ? 'green' : 'default'}>{status?.status ?? 'LOADING'}</Badge><Button variant="ghost" onClick={() => { void refresh(); void refreshHistory(); }} disabled={loading || historyLoading}><RefreshCw size={14} className={loading || historyLoading ? 'animate-spin' : ''}/></Button></div>}
     />
     <CardBody className="space-y-4">
       {error && <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-300">{error}</div>}
@@ -112,6 +158,15 @@ export function CryptoBtcDashboardPanel() {
 
       {liveAction?.result && <LiveActionResult action={liveAction} />}
       {backtest?.summary && <div ref={backtestResultRef}><UnderlyingBacktestResult result={backtest} /></div>}
+      <BacktestHistory
+        items={backtestHistory}
+        loading={historyLoading}
+        error={historyError}
+        openingId={historyOpeningId}
+        selectedJobId={selectedBacktestJobId}
+        onOpen={jobId => void openHistoricalBacktest(jobId)}
+        onRefresh={() => void refreshHistory()}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <CryptoMetric label="Delta snapshots" value={String(collection?.snapshot_count ?? 0)} sub={collection?.latest_snapshot_at ? `Latest ${formatIst(collection.latest_snapshot_at)}` : 'Waiting for first snapshot'} />
@@ -160,6 +215,60 @@ function BacktestProgress({ job }: { job: CryptoBtcBacktestJob | null }) {
     <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
       <div className={`h-full rounded-full bg-blue-600 transition-all duration-500 ${loadingData ? 'animate-pulse' : ''}`} style={{ width: loadingData ? '8%' : `${pct}%` }} />
     </div>
+  </div>;
+}
+
+function BacktestHistory({
+  items,
+  loading,
+  error,
+  openingId,
+  selectedJobId,
+  onOpen,
+  onRefresh,
+}: {
+  items: CryptoBtcBacktestJob[];
+  loading: boolean;
+  error: string | null;
+  openingId: string | null;
+  selectedJobId: string | null;
+  onOpen: (jobId: string) => void;
+  onRefresh: () => void;
+}) {
+  return <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div className="p-4 flex items-start justify-between gap-3 flex-wrap border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-start gap-2">
+        <History size={16} className="mt-0.5 text-slate-500" />
+        <div><p className="text-sm font-semibold">Past backtests</p><p className="text-[11px] text-slate-500 mt-0.5">Stored in AlphaPilot Postgres so completed runs can be reopened after browser refreshes and future deployments.</p></div>
+      </div>
+      <Button variant="ghost" onClick={onRefresh} disabled={loading}><RefreshCw size={14} className={loading ? 'animate-spin' : ''}/></Button>
+    </div>
+    {error && <div className="mx-4 mt-3 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-2.5 text-[11px] text-amber-700 dark:text-amber-300">{error}</div>}
+    {items.length === 0 ? <div className="p-4 text-xs text-slate-500">{loading ? 'Loading stored backtests…' : 'No persistent backtests stored yet. The next run will be saved here automatically.'}</div> : <div className="overflow-x-auto">
+      <table className="w-full min-w-[900px] text-left text-[11px]">
+        <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500">
+          <tr><th className="px-3 py-2 font-medium">Run</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Window</th><th className="px-3 py-2 font-medium">Directional</th><th className="px-3 py-2 font-medium">Resolved</th><th className="px-3 py-2 font-medium">Target / Stop</th><th className="px-3 py-2 font-medium">Win rate</th><th className="px-3 py-2 font-medium">Total R</th><th className="px-3 py-2 font-medium">Result</th></tr>
+        </thead>
+        <tbody>
+          {items.map(job => {
+            const summary = job.result?.summary;
+            const selected = selectedJobId === job.job_id;
+            const canOpen = job.status === 'COMPLETED' && Boolean(job.result);
+            return <tr key={job.job_id} className={`border-t border-slate-200 dark:border-slate-800 ${selected ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}>
+              <td className="px-3 py-2.5"><p className="font-medium">{formatIst(job.finished_at || job.started_at)}</p><p className="text-[10px] text-slate-500 mt-0.5 font-mono">…{job.job_id.slice(-10)}</p></td>
+              <td className="px-3 py-2.5"><Badge variant={job.status === 'COMPLETED' ? 'green' : job.status === 'FAILED' ? 'red' : 'blue'}>{job.status}</Badge></td>
+              <td className="px-3 py-2.5 whitespace-nowrap">{formatShortWindow(job.result?.window_start, job.result?.window_end_exclusive)}</td>
+              <td className="px-3 py-2.5">{summary?.directional_setups ?? '—'}</td>
+              <td className="px-3 py-2.5">{summary?.resolved_setups ?? '—'}</td>
+              <td className="px-3 py-2.5">{summary ? `${summary.target_hits ?? 0} / ${summary.stops ?? 0}` : '—'}</td>
+              <td className="px-3 py-2.5">{summary?.setup_win_rate_pct == null ? '—' : `${summary.setup_win_rate_pct.toFixed(1)}%`}</td>
+              <td className="px-3 py-2.5">{formatR(summary?.total_r)}</td>
+              <td className="px-3 py-2.5"><Button variant="ghost" disabled={!canOpen || openingId === job.job_id} onClick={() => onOpen(job.job_id)}>{openingId === job.job_id ? 'Opening…' : selected ? 'Viewing' : canOpen ? 'View' : '—'}</Button></td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div>}
   </div>;
 }
 
@@ -220,6 +329,7 @@ function CryptoMetric({ label, value, sub }: { label: string; value: string; sub
 
 function pretty(value?: string | null) { return value ? value.replaceAll('_', ' ') : '—'; }
 function formatIst(value?: string | null) { if (!value) return '—'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+function formatShortWindow(start?: string | null, end?: string | null) { return start && end ? `${formatIst(start)} → ${formatIst(end)}` : '—'; }
 function formatDateOnly(value?: string | null) { if (!value) return '—'; const d = new Date(`${value}T00:00:00Z`); return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('en-IN', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }); }
 function formatPrice(value?: number | null) { return value == null ? '—' : `$${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`; }
 function formatPct(value?: number | null) { return value == null ? '—' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`; }
