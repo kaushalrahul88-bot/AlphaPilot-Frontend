@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, FlaskConical, Play, RefreshCw, Zap } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import {
@@ -13,13 +13,16 @@ import {
   type CryptoBtcBacktestJob,
 } from '@/lib/cryptoBtcApi';
 
+const BTC_BACKTEST_RESULT_KEY = 'alphapilot.crypto.btc.lastBacktestResult';
+
 export function CryptoBtcDashboardPanel() {
+  const backtestResultRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<CryptoBtcDashboardStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backtestRunning, setBacktestRunning] = useState(false);
   const [liveRunning, setLiveRunning] = useState(false);
-  const [backtest, setBacktest] = useState<CryptoBtcUnderlyingBacktestResult | null>(null);
+  const [backtest, setBacktest] = useState<CryptoBtcUnderlyingBacktestResult | null>(loadLastBacktestResult);
   const [backtestJob, setBacktestJob] = useState<CryptoBtcBacktestJob | null>(null);
   const [liveAction, setLiveAction] = useState<CryptoBtcLiveShadowActionResult | null>(null);
 
@@ -39,7 +42,6 @@ export function CryptoBtcDashboardPanel() {
     setBacktestRunning(true);
     setError(null);
     try {
-      setBacktest(null);
       let job = await runCryptoBtcUnderlyingBacktest();
       setBacktestJob(job);
       while (job.status === 'RUNNING') {
@@ -49,7 +51,8 @@ export function CryptoBtcDashboardPanel() {
       }
       if (job.status === 'FAILED') throw new Error(job.error || 'BTC underlying backtest failed');
       if (!job.result) throw new Error('BTC backtest completed without a result');
-      setBacktest(job.result);
+      const visibleResult = rememberBacktestResult(job.result);
+      setBacktest(visibleResult);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'BTC underlying backtest failed');
     } finally {
@@ -75,6 +78,10 @@ export function CryptoBtcDashboardPanel() {
     const timer = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    if (backtest) backtestResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [backtest]);
 
   const collection = status?.collection;
   const proof = status?.prospective_proof;
@@ -104,7 +111,7 @@ export function CryptoBtcDashboardPanel() {
       </div>
 
       {liveAction?.result && <LiveActionResult action={liveAction} />}
-      {backtest?.summary && <UnderlyingBacktestResult result={backtest} />}
+      {backtest?.summary && <div ref={backtestResultRef}><UnderlyingBacktestResult result={backtest} /></div>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <CryptoMetric label="Delta snapshots" value={String(collection?.snapshot_count ?? 0)} sub={collection?.latest_snapshot_at ? `Latest ${formatIst(collection.latest_snapshot_at)}` : 'Waiting for first snapshot'} />
@@ -219,3 +226,28 @@ function formatPct(value?: number | null) { return value == null ? '—' : `${va
 function formatNumber(value?: number | null, digits = 0) { return value == null ? '—' : value.toLocaleString('en-IN', { maximumFractionDigits: digits }); }
 function formatAccuracy(value?: number | null) { return value == null ? 'NOT SCORED YET' : `${(value * 100).toFixed(1)}%`; }
 function formatR(value?: number | null) { return value == null ? '—' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}R`; }
+
+function loadLastBacktestResult(): CryptoBtcUnderlyingBacktestResult | null {
+  try {
+    const saved = window.sessionStorage.getItem(BTC_BACKTEST_RESULT_KEY);
+    return saved ? JSON.parse(saved) as CryptoBtcUnderlyingBacktestResult : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberBacktestResult(result: CryptoBtcUnderlyingBacktestResult): CryptoBtcUnderlyingBacktestResult {
+  const visibleResult: CryptoBtcUnderlyingBacktestResult = {
+    status: result.status,
+    window_start: result.window_start,
+    window_end_exclusive: result.window_end_exclusive,
+    scheduled_clicks: result.scheduled_clicks,
+    summary: result.summary,
+  };
+  try {
+    window.sessionStorage.setItem(BTC_BACKTEST_RESULT_KEY, JSON.stringify(visibleResult));
+  } catch {
+    // The in-memory scorecard remains available when browser storage is blocked.
+  }
+  return visibleResult;
+}
