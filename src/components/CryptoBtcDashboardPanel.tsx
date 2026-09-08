@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, RefreshCw } from 'lucide-react';
+import { Activity, FlaskConical, Play, RefreshCw, Zap } from 'lucide-react';
 import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import {
   getCryptoBtcDashboardStatus,
+  generateCryptoBtcLiveShadowSetup,
+  runCryptoBtcUnderlyingBacktest,
   type CryptoBtcDashboardStatus,
   type CryptoBtcShadowClick,
+  type CryptoBtcLiveShadowActionResult,
+  type CryptoBtcUnderlyingBacktestResult,
 } from '@/lib/cryptoBtcApi';
 
 export function CryptoBtcDashboardPanel() {
   const [status, setStatus] = useState<CryptoBtcDashboardStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backtestRunning, setBacktestRunning] = useState(false);
+  const [liveRunning, setLiveRunning] = useState(false);
+  const [backtest, setBacktest] = useState<CryptoBtcUnderlyingBacktestResult | null>(null);
+  const [liveAction, setLiveAction] = useState<CryptoBtcLiveShadowActionResult | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -23,6 +31,31 @@ export function CryptoBtcDashboardPanel() {
       setLoading(false);
     }
   }, []);
+
+  const runBacktest = useCallback(async () => {
+    setBacktestRunning(true);
+    setError(null);
+    try {
+      setBacktest(await runCryptoBtcUnderlyingBacktest());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'BTC underlying backtest failed');
+    } finally {
+      setBacktestRunning(false);
+    }
+  }, []);
+
+  const generateLiveSetup = useCallback(async () => {
+    setLiveRunning(true);
+    setError(null);
+    try {
+      setLiveAction(await generateCryptoBtcLiveShadowSetup());
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'BTC live shadow setup failed');
+    } finally {
+      setLiveRunning(false);
+    }
+  }, [refresh]);
 
   useEffect(() => {
     void refresh();
@@ -44,6 +77,20 @@ export function CryptoBtcDashboardPanel() {
     />
     <CardBody className="space-y-4">
       {error && <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-300">{error}</div>}
+
+      <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div><p className="text-sm font-semibold">Crypto research actions</p><p className="text-[11px] text-slate-500 mt-1">Generate a server-time BTC shadow setup now, or replay the first collected 24 hours at 15-minute clicks. Neither action places an order.</p></div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={() => void generateLiveSetup()} disabled={liveRunning || backtestRunning}><Zap size={14} className="inline mr-1"/>{liveRunning ? 'Generating…' : 'Generate Live BTC Setup'}</Button>
+            <Button onClick={() => void runBacktest()} disabled={backtestRunning || liveRunning}><Play size={14} className="inline mr-1"/>{backtestRunning ? 'Running 96 clicks…' : 'Run 24h Backtest'}</Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2"><Badge variant="green">SERVER TIME</Badge><Badge variant="green">SHADOW ONLY</Badge><Badge variant="default">NO BROKER ORDER</Badge><Badge variant="default">CAPITAL ₹0</Badge></div>
+      </div>
+
+      {liveAction?.result && <LiveActionResult action={liveAction} />}
+      {backtest?.summary && <UnderlyingBacktestResult result={backtest} />}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <CryptoMetric label="Delta snapshots" value={String(collection?.snapshot_count ?? 0)} sub={collection?.latest_snapshot_at ? `Latest ${formatIst(collection.latest_snapshot_at)}` : 'Waiting for first snapshot'} />
@@ -80,6 +127,27 @@ export function CryptoBtcDashboardPanel() {
       {outcome?.large_move_missed_during_abstention && <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">Latest NO TRADE was followed by a large move. AlphaPilot has marked this exact frozen sample for diagnostic review instead of rewriting the original decision.</div>}
     </CardBody>
   </Card>;
+}
+
+function LiveActionResult({ action }: { action: CryptoBtcLiveShadowActionResult }) {
+  const result = action.result;
+  const option = result?.option_entry;
+  const directional = result?.market_direction === 'BULLISH' || result?.market_direction === 'BEARISH';
+  return <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+    <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">Generated live BTC shadow setup</p><p className="text-[11px] text-slate-500 mt-0.5">Server decision {formatIst(result?.decision_at)}</p></div><Badge variant={directional ? 'blue' : 'default'}>{result?.market_direction ?? 'UNKNOWN'}</Badge></div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="BTC at decision" value={formatPrice(result?.proof_bridge?.decision_btc_price)} /><CryptoMetric label="Decision" value={pretty(result?.shadow_status)} /><CryptoMetric label="Reason" value={pretty(result?.reason)} /><CryptoMetric label="Order placed" value="NO" /></div>
+    {option ? <div className="rounded-md border border-blue-200 dark:border-blue-900 p-3"><div className="flex gap-2 flex-wrap"><Badge variant="blue">BUY {option.option_type}</Badge><Badge variant="default">{option.symbol}</Badge><Badge variant="green">SHADOW ENTRY</Badge></div><p className="text-xs mt-2">Strike {formatPrice(option.strike_price)} · observed ask {formatPrice(option.entry_ask)}</p></div> : <p className="text-xs text-slate-500">No Options shadow entry was generated. AlphaPilot retained WAIT/NO TRADE because the required direction or exact contract conditions were not satisfied.</p>}
+  </div>;
+}
+
+function UnderlyingBacktestResult({ result }: { result: CryptoBtcUnderlyingBacktestResult }) {
+  const summary = result.summary;
+  return <div className="rounded-lg border border-violet-200 dark:border-violet-900 p-4 space-y-3">
+    <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">First 24h underlying scorecard</p><p className="text-[11px] text-slate-500 mt-0.5">{formatIst(result.window_start)} → {formatIst(result.window_end_exclusive)} · 15-minute clicks</p></div><Badge variant="purple"><FlaskConical size={12} className="mr-1"/>UNDERLYING ONLY</Badge></div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="Scheduled clicks" value={String(result.scheduled_clicks ?? 0)} /><CryptoMetric label="Directional setups" value={String(summary?.directional_setups ?? 0)} /><CryptoMetric label="Resolved setups" value={String(summary?.resolved_setups ?? 0)} /><CryptoMetric label="Target / Stop" value={`${summary?.target_hits ?? 0} / ${summary?.stops ?? 0}`} /></div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="Setup win rate" value={summary?.setup_win_rate_pct == null ? 'NOT SCORED' : `${summary.setup_win_rate_pct.toFixed(1)}%`} /><CryptoMetric label="Total R" value={formatR(summary?.total_r)} /><CryptoMetric label="Average R" value={formatR(summary?.average_r)} /><CryptoMetric label="Options P&L" value="NOT EVALUATED" /></div>
+    <p className="text-[11px] text-slate-500">Missing historical lanes remain missing; newer evidence is never backfilled into these clicks. Same-candle ordering is marked ambiguous.</p>
+  </div>;
 }
 
 function LatestCryptoClick({ latest }: { latest: CryptoBtcShadowClick | null }) {
@@ -123,3 +191,4 @@ function formatPrice(value?: number | null) { return value == null ? '—' : `$$
 function formatPct(value?: number | null) { return value == null ? '—' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`; }
 function formatNumber(value?: number | null, digits = 0) { return value == null ? '—' : value.toLocaleString('en-IN', { maximumFractionDigits: digits }); }
 function formatAccuracy(value?: number | null) { return value == null ? 'NOT SCORED YET' : `${(value * 100).toFixed(1)}%`; }
+function formatR(value?: number | null) { return value == null ? '—' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}R`; }
