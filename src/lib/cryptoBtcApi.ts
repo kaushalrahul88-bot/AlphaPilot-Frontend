@@ -100,11 +100,13 @@ export interface CryptoBtcDashboardStatus {
 }
 
 export interface CryptoBtcUnderlyingBacktestResult {
+  mode?: string;
   status: string;
   window_start?: string;
   window_end_exclusive?: string;
   scheduled_clicks?: number;
   summary?: {
+    replay_mode?: string;
     decisions?: Record<string, number>;
     outcomes?: Record<string, number>;
     directional_setups?: number;
@@ -114,12 +116,17 @@ export interface CryptoBtcUnderlyingBacktestResult {
     setup_win_rate_pct?: number | null;
     total_r?: number | null;
     average_r?: number | null;
+    historical_memory_available_clicks?: number;
+    options_context_available_clicks?: number;
+    stablecoin_context_available_clicks?: number;
+    stablecoin_ready_clicks?: number;
     options_profitability_evaluated?: boolean;
   };
 }
 
 export interface CryptoBtcBacktestJob {
   job_id: string;
+  mode?: string | null;
   status: 'RUNNING' | 'COMPLETED' | 'FAILED';
   phase?: string;
   completed_clicks: number;
@@ -138,6 +145,30 @@ export interface CryptoBtcBacktestHistoryResponse {
   status: string;
   count: number;
   items: CryptoBtcBacktestJob[];
+}
+
+export interface CryptoBtcEnrichedReadiness {
+  version: string;
+  status: string;
+  ready: boolean;
+  checked_at?: string;
+  window_start?: string | null;
+  window_end_exclusive?: string | null;
+  covered_clicks: number;
+  required_clicks: number;
+  coverage_pct: number;
+  next_requirement?: string;
+  first_incomplete_reason?: string | null;
+  theoretical_earliest_start?: string | null;
+  theoretical_earliest_complete?: string | null;
+  theoretical_dates_assume_continuous_collection?: boolean;
+  datasets?: Record<string, {
+    count?: number;
+    first_seen_at?: string | null;
+    latest_seen_at?: string | null;
+    history_ready_at?: string | null;
+    theoretical_comparison_ready_at?: string | null;
+  }>;
 }
 
 export interface CryptoBtcLiveShadowActionResult {
@@ -167,6 +198,17 @@ export async function getCryptoBtcDashboardStatus(): Promise<CryptoBtcDashboardS
   return response.json() as Promise<CryptoBtcDashboardStatus>;
 }
 
+function errorDetail(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== 'object') return fallback;
+  const detail = (payload as { detail?: unknown }).detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object') {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+  return fallback;
+}
+
 async function postCryptoAction<T>(path: string, timeoutMs = 30_000): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -177,8 +219,8 @@ async function postCryptoAction<T>(path: string, timeoutMs = 30_000): Promise<T>
       signal: controller.signal,
     });
     if (!response.ok) {
-      const payload = await response.json().catch(() => null) as { detail?: string } | null;
-      throw new Error(payload?.detail || `Crypto action failed (${response.status})`);
+      const payload = await response.json().catch(() => null) as unknown;
+      throw new Error(errorDetail(payload, `Crypto action failed (${response.status})`));
     }
     return response.json() as Promise<T>;
   } catch (error) {
@@ -195,13 +237,28 @@ export function runCryptoBtcUnderlyingBacktest(): Promise<CryptoBtcBacktestJob> 
   return postCryptoAction('/v1/dashboard/crypto/btc/actions/first-24h-underlying-backtest');
 }
 
+export function runCryptoBtcEnrichedUnderlyingBacktest(): Promise<CryptoBtcBacktestJob> {
+  return postCryptoAction('/v1/dashboard/crypto/btc/actions/enriched-24h-underlying-backtest');
+}
+
+export async function getCryptoBtcEnrichedReadiness(): Promise<CryptoBtcEnrichedReadiness> {
+  const response = await fetch(`${ALPHAPILOT_API_BASE}/v1/dashboard/crypto/btc/actions/enriched-24h-underlying-backtest/readiness`, {
+    method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store',
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as unknown;
+    throw new Error(errorDetail(payload, `Enriched replay readiness unavailable (${response.status})`));
+  }
+  return response.json() as Promise<CryptoBtcEnrichedReadiness>;
+}
+
 export async function getCryptoBtcUnderlyingBacktestJob(jobId: string): Promise<CryptoBtcBacktestJob> {
   const response = await fetch(`${ALPHAPILOT_API_BASE}/v1/dashboard/crypto/btc/actions/first-24h-underlying-backtest/${encodeURIComponent(jobId)}`, {
     method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store',
   });
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { detail?: string } | null;
-    throw new Error(payload?.detail || `Backtest progress unavailable (${response.status})`);
+    const payload = await response.json().catch(() => null) as unknown;
+    throw new Error(errorDetail(payload, `Backtest progress unavailable (${response.status})`));
   }
   return response.json() as Promise<CryptoBtcBacktestJob>;
 }
@@ -212,8 +269,8 @@ export async function getCryptoBtcUnderlyingBacktestHistory(limit = 50): Promise
     method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store',
   });
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { detail?: string } | null;
-    throw new Error(payload?.detail || `Backtest history unavailable (${response.status})`);
+    const payload = await response.json().catch(() => null) as unknown;
+    throw new Error(errorDetail(payload, `Backtest history unavailable (${response.status})`));
   }
   return response.json() as Promise<CryptoBtcBacktestHistoryResponse>;
 }
