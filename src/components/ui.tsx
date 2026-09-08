@@ -64,8 +64,8 @@ export function Badge({ children, variant = 'default' }: { children: ReactNode; 
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${variants[variant]}`}>{children}</span>;
 }
 
-export function Button({ children, onClick, variant = 'default', size = 'md', className = '', type = 'button', disabled = false }: {
-  children: ReactNode; onClick?: () => void; variant?: 'default' | 'primary' | 'danger' | 'ghost'; size?: 'sm' | 'md' | 'lg'; className?: string; type?: 'button' | 'submit'; disabled?: boolean;
+export function Button({ children, onClick, variant = 'default', size = 'md', className = '', type = 'button', disabled = false, title }: {
+  children: ReactNode; onClick?: () => void; variant?: 'default' | 'primary' | 'danger' | 'ghost'; size?: 'sm' | 'md' | 'lg'; className?: string; type?: 'button' | 'submit'; disabled?: boolean; title?: string;
 }) {
   const variants: Record<string, string> = {
     default: 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200',
@@ -79,7 +79,7 @@ export function Button({ children, onClick, variant = 'default', size = 'md', cl
     lg: 'px-6 py-2.5 text-base',
   };
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`rounded-lg font-medium transition-colors ${variants[variant]} ${sizes[size]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button type={type} onClick={onClick} disabled={disabled} title={title} className={`rounded-lg font-medium transition-colors ${variants[variant]} ${sizes[size]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
       {children}
     </button>
   );
