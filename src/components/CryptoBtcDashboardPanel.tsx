@@ -3,11 +3,14 @@ import { Activity, FlaskConical, History, Play, RefreshCw, Zap } from 'lucide-re
 import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
 import {
   getCryptoBtcDashboardStatus,
+  getCryptoBtcEnrichedReadiness,
   getCryptoBtcUnderlyingBacktestHistory,
   getCryptoBtcUnderlyingBacktestJob,
   generateCryptoBtcLiveShadowSetup,
+  runCryptoBtcEnrichedUnderlyingBacktest,
   runCryptoBtcUnderlyingBacktest,
   type CryptoBtcDashboardStatus,
+  type CryptoBtcEnrichedReadiness,
   type CryptoBtcShadowClick,
   type CryptoBtcLiveShadowActionResult,
   type CryptoBtcUnderlyingBacktestResult,
@@ -16,12 +19,15 @@ import {
 
 const BTC_BACKTEST_RESULT_KEY = 'alphapilot.crypto.btc.lastBacktestResult';
 
+type BacktestKind = 'FIRST_SHARED_24H' | 'ENRICHED_PIT_24H';
+
 export function CryptoBtcDashboardPanel() {
   const backtestResultRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<CryptoBtcDashboardStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backtestRunning, setBacktestRunning] = useState(false);
+  const [backtestKind, setBacktestKind] = useState<BacktestKind | null>(null);
   const [liveRunning, setLiveRunning] = useState(false);
   const [backtest, setBacktest] = useState<CryptoBtcUnderlyingBacktestResult | null>(loadLastBacktestResult);
   const [backtestJob, setBacktestJob] = useState<CryptoBtcBacktestJob | null>(null);
@@ -31,6 +37,8 @@ export function CryptoBtcDashboardPanel() {
   const [historyOpeningId, setHistoryOpeningId] = useState<string | null>(null);
   const [selectedBacktestJobId, setSelectedBacktestJobId] = useState<string | null>(null);
   const [liveAction, setLiveAction] = useState<CryptoBtcLiveShadowActionResult | null>(null);
+  const [enrichedReadiness, setEnrichedReadiness] = useState<CryptoBtcEnrichedReadiness | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -57,11 +65,25 @@ export function CryptoBtcDashboardPanel() {
     }
   }, []);
 
-  const runBacktest = useCallback(async () => {
+  const refreshReadiness = useCallback(async () => {
+    setReadinessLoading(true);
+    try {
+      setEnrichedReadiness(await getCryptoBtcEnrichedReadiness());
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : 'Enriched BTC replay readiness unavailable');
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, []);
+
+  const runBacktest = useCallback(async (kind: BacktestKind) => {
     setBacktestRunning(true);
+    setBacktestKind(kind);
     setError(null);
     try {
-      let job = await runCryptoBtcUnderlyingBacktest();
+      let job = kind === 'ENRICHED_PIT_24H'
+        ? await runCryptoBtcEnrichedUnderlyingBacktest()
+        : await runCryptoBtcUnderlyingBacktest();
       setBacktestJob(job);
       setSelectedBacktestJobId(job.job_id);
       while (job.status === 'RUNNING') {
@@ -76,14 +98,15 @@ export function CryptoBtcDashboardPanel() {
       if (job.history_persisted === false) {
         setHistoryError(job.history_error || 'Backtest completed, but its persistent history write failed.');
       }
-      await refreshHistory();
+      await Promise.all([refreshHistory(), refreshReadiness()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'BTC underlying backtest failed');
-      await refreshHistory();
+      await Promise.all([refreshHistory(), refreshReadiness()]);
     } finally {
       setBacktestRunning(false);
+      setBacktestKind(null);
     }
-  }, [refreshHistory]);
+  }, [refreshHistory, refreshReadiness]);
 
   const openHistoricalBacktest = useCallback(async (jobId: string) => {
     setHistoryOpeningId(jobId);
@@ -118,12 +141,14 @@ export function CryptoBtcDashboardPanel() {
   useEffect(() => {
     void refresh();
     void refreshHistory();
+    void refreshReadiness();
     const timer = window.setInterval(() => {
       void refresh();
       void refreshHistory();
+      void refreshReadiness();
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [refresh, refreshHistory]);
+  }, [refresh, refreshHistory, refreshReadiness]);
 
   useEffect(() => {
     if (backtest) backtestResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -134,25 +159,28 @@ export function CryptoBtcDashboardPanel() {
   const shadow = status?.live_shadow;
   const latest = shadow?.latest ?? null;
   const outcome = latest?.resolution?.outcome ?? null;
+  const readinessReady = enrichedReadiness?.ready === true;
 
   return <Card>
     <CardHeader
       title="Crypto — BTC Options Prospective Proof"
       subtitle="Genuine Delta India Options snapshots + frozen BTC Market Brain decisions + later 4-hour outcomes. Research/shadow only."
-      action={<div className="flex items-center gap-2"><Badge variant={status?.status === 'ACTIVE' ? 'green' : 'default'}>{status?.status ?? 'LOADING'}</Badge><Button variant="ghost" onClick={() => { void refresh(); void refreshHistory(); }} disabled={loading || historyLoading}><RefreshCw size={14} className={loading || historyLoading ? 'animate-spin' : ''}/></Button></div>}
+      action={<div className="flex items-center gap-2"><Badge variant={status?.status === 'ACTIVE' ? 'green' : 'default'}>{status?.status ?? 'LOADING'}</Badge><Button variant="ghost" onClick={() => { void refresh(); void refreshHistory(); void refreshReadiness(); }} disabled={loading || historyLoading || readinessLoading}><RefreshCw size={14} className={loading || historyLoading || readinessLoading ? 'animate-spin' : ''}/></Button></div>}
     />
     <CardBody className="space-y-4">
       {error && <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-300">{error}</div>}
 
       <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div><p className="text-sm font-semibold">Crypto research actions</p><p className="text-[11px] text-slate-500 mt-1">Generate a server-time BTC shadow setup now, or replay the first collected 24 hours at 15-minute clicks. Neither action places an order.</p></div>
+          <div><p className="text-sm font-semibold">Crypto research actions</p><p className="text-[11px] text-slate-500 mt-1">Generate a server-time BTC shadow setup, preserve the original first-day replay, or run the later enriched 24-hour replay once its point-in-time context is genuinely complete.</p></div>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => void generateLiveSetup()} disabled={liveRunning || backtestRunning}><Zap size={14} className="inline mr-1"/>{liveRunning ? 'Generating…' : 'Generate Live BTC Setup'}</Button>
-            <Button onClick={() => void runBacktest()} disabled={backtestRunning || liveRunning}><Play size={14} className="inline mr-1"/>{backtestRunning ? 'Running 96 clicks…' : 'Run 24h Backtest'}</Button>
+            <Button onClick={() => void runBacktest('FIRST_SHARED_24H')} disabled={backtestRunning || liveRunning}><Play size={14} className="inline mr-1"/>{backtestRunning && backtestKind === 'FIRST_SHARED_24H' ? 'Running 96 clicks…' : 'Replay First 24h'}</Button>
+            <Button variant={readinessReady ? 'primary' : 'ghost'} title={enrichedReadiness?.next_requirement || 'Checking enriched replay readiness'} onClick={() => void runBacktest('ENRICHED_PIT_24H')} disabled={backtestRunning || liveRunning || !readinessReady}><Play size={14} className="inline mr-1"/>{backtestRunning && backtestKind === 'ENRICHED_PIT_24H' ? 'Running enriched 96…' : readinessReady ? 'Run Enriched 24h' : 'Enriched 24h Collecting'}</Button>
           </div>
         </div>
         <div className="flex flex-wrap gap-2"><Badge variant="green">SERVER TIME</Badge><Badge variant="green">SHADOW ONLY</Badge><Badge variant="default">NO BROKER ORDER</Badge><Badge variant="default">CAPITAL ₹0</Badge></div>
+        <EnrichedReadiness readiness={enrichedReadiness} loading={readinessLoading} />
         {backtestRunning && <BacktestProgress job={backtestJob} />}
       </div>
 
@@ -205,11 +233,20 @@ export function CryptoBtcDashboardPanel() {
   </Card>;
 }
 
+function EnrichedReadiness({ readiness, loading }: { readiness: CryptoBtcEnrichedReadiness | null; loading: boolean }) {
+  if (!readiness) return <div className="rounded-md border border-slate-200 dark:border-slate-800 p-3 text-[11px] text-slate-500">{loading ? 'Checking enriched replay readiness…' : 'Enriched replay readiness is not available yet.'}</div>;
+  return <div className="rounded-md border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+    <div className="flex items-start justify-between gap-3 flex-wrap"><div><p className="text-xs font-semibold">Enriched 24h readiness</p><p className="text-[10px] text-slate-500 mt-0.5">Fresh Deribit context + real 24h stablecoin comparison at every 15-minute click.</p></div><Badge variant={readiness.ready ? 'green' : 'amber'}>{readiness.ready ? 'READY' : pretty(readiness.status)}</Badge></div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="Qualified clicks" value={`${readiness.covered_clicks ?? 0} / ${readiness.required_clicks ?? 96}`} /><CryptoMetric label="Coverage" value={`${(readiness.coverage_pct ?? 0).toFixed(1)}%`} /><CryptoMetric label="Earliest window start*" value={formatIst(readiness.window_start || readiness.theoretical_earliest_start)} /><CryptoMetric label="Earliest complete*" value={formatIst(readiness.window_end_exclusive || readiness.theoretical_earliest_complete)} /></div>
+    <p className="text-[10px] text-slate-500">{readiness.next_requirement || 'Keep collecting point-in-time context.'}{readiness.theoretical_dates_assume_continuous_collection ? ' *Estimate assumes uninterrupted collection.' : ''}</p>
+  </div>;
+}
+
 function BacktestProgress({ job }: { job: CryptoBtcBacktestJob | null }) {
   const completed = job?.completed_clicks ?? 0;
   const total = job?.total_clicks ?? 96;
   const pct = Math.max(0, Math.min(100, job?.progress_pct ?? 0));
-  const loadingData = job?.phase === 'LOADING_ARCHIVED_INPUTS' || job?.phase === 'QUEUED';
+  const loadingData = ['CHECKING_ENRICHED_READINESS', 'LOADING_ENRICHED_INPUTS', 'LOADING_ARCHIVED_INPUTS', 'QUEUED'].includes(job?.phase || '');
   return <div className="space-y-1.5" role="status" aria-live="polite">
     <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300"><span>{pretty(job?.phase || 'STARTING')}</span><span>{loadingData ? 'Loading market data…' : `${completed} / ${total} clicks · ${pct.toFixed(1)}%`}</span></div>
     <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
@@ -285,11 +322,13 @@ function LiveActionResult({ action }: { action: CryptoBtcLiveShadowActionResult 
 
 function UnderlyingBacktestResult({ result }: { result: CryptoBtcUnderlyingBacktestResult }) {
   const summary = result.summary;
+  const enriched = result.mode?.startsWith('BTC_ENRICHED_') || summary?.replay_mode === 'ENRICHED_PIT_24H';
   return <div className="rounded-lg border border-violet-200 dark:border-violet-900 p-4 space-y-3">
-    <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">First 24h underlying scorecard</p><p className="text-[11px] text-slate-500 mt-0.5">{formatIst(result.window_start)} → {formatIst(result.window_end_exclusive)} · 15-minute clicks</p></div><Badge variant="purple"><FlaskConical size={12} className="mr-1"/>UNDERLYING ONLY</Badge></div>
+    <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{enriched ? 'Enriched 24h underlying scorecard' : 'First 24h underlying scorecard'}</p><p className="text-[11px] text-slate-500 mt-0.5">{formatIst(result.window_start)} → {formatIst(result.window_end_exclusive)} · 15-minute clicks</p></div><Badge variant="purple"><FlaskConical size={12} className="mr-1"/>{enriched ? 'ENRICHED PIT' : 'UNDERLYING ONLY'}</Badge></div>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="Scheduled clicks" value={String(result.scheduled_clicks ?? 0)} /><CryptoMetric label="Directional setups" value={String(summary?.directional_setups ?? 0)} /><CryptoMetric label="Resolved setups" value={String(summary?.resolved_setups ?? 0)} /><CryptoMetric label="Target / Stop" value={`${summary?.target_hits ?? 0} / ${summary?.stops ?? 0}`} /></div>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="Setup win rate" value={summary?.setup_win_rate_pct == null ? 'NOT SCORED' : `${summary.setup_win_rate_pct.toFixed(1)}%`} /><CryptoMetric label="Total R" value={formatR(summary?.total_r)} /><CryptoMetric label="Average R" value={formatR(summary?.average_r)} /><CryptoMetric label="Options P&L" value="NOT EVALUATED" /></div>
-    <p className="text-[11px] text-slate-500">Missing historical lanes remain missing; newer evidence is never backfilled into these clicks. Same-candle ordering is marked ambiguous.</p>
+    {enriched && <div className="grid grid-cols-2 lg:grid-cols-4 gap-2"><CryptoMetric label="Historical memory" value={`${summary?.historical_memory_available_clicks ?? 0} / 96`} /><CryptoMetric label="Options context" value={`${summary?.options_context_available_clicks ?? 0} / 96`} /><CryptoMetric label="Stablecoin context" value={`${summary?.stablecoin_context_available_clicks ?? 0} / 96`} /><CryptoMetric label="Stablecoin state ready" value={`${summary?.stablecoin_ready_clicks ?? 0} / 96`} /></div>}
+    <p className="text-[11px] text-slate-500">{enriched ? 'This later window runs only after point-in-time options and 24-hour-comparable stablecoin context are genuinely available at every click. These context lanes still cannot manufacture BTC direction.' : 'Missing historical lanes remain missing; newer evidence is never backfilled into these clicks. Same-candle ordering is marked ambiguous.'}</p>
   </div>;
 }
 
@@ -348,6 +387,7 @@ function loadLastBacktestResult(): CryptoBtcUnderlyingBacktestResult | null {
 
 function rememberBacktestResult(result: CryptoBtcUnderlyingBacktestResult): CryptoBtcUnderlyingBacktestResult {
   const visibleResult: CryptoBtcUnderlyingBacktestResult = {
+    mode: result.mode,
     status: result.status,
     window_start: result.window_start,
     window_end_exclusive: result.window_end_exclusive,
