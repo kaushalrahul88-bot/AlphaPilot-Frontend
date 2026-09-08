@@ -158,16 +158,28 @@ export async function getCryptoBtcDashboardStatus(): Promise<CryptoBtcDashboardS
   return response.json() as Promise<CryptoBtcDashboardStatus>;
 }
 
-async function postCryptoAction<T>(path: string): Promise<T> {
-  const response = await fetch(`${ALPHAPILOT_API_BASE}${path}`, {
-    method: 'POST',
-    headers: { Accept: 'application/json' },
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { detail?: string } | null;
-    throw new Error(payload?.detail || `Crypto action failed (${response.status})`);
+async function postCryptoAction<T>(path: string, timeoutMs = 30_000): Promise<T> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${ALPHAPILOT_API_BASE}${path}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { detail?: string } | null;
+      throw new Error(payload?.detail || `Crypto action failed (${response.status})`);
+    }
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('The server did not start the action within 30 seconds. Refresh the dashboard and try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return response.json() as Promise<T>;
 }
 
 export function runCryptoBtcUnderlyingBacktest(): Promise<CryptoBtcBacktestJob> {
