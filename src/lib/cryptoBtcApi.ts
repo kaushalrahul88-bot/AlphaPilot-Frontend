@@ -99,6 +99,41 @@ export interface CryptoBtcDashboardStatus {
   };
 }
 
+export interface CryptoBtcUnderlyingBacktestResult {
+  status: string;
+  window_start?: string;
+  window_end_exclusive?: string;
+  scheduled_clicks?: number;
+  summary?: {
+    decisions?: Record<string, number>;
+    outcomes?: Record<string, number>;
+    directional_setups?: number;
+    resolved_setups?: number;
+    target_hits?: number;
+    stops?: number;
+    setup_win_rate_pct?: number | null;
+    total_r?: number | null;
+    average_r?: number | null;
+    options_profitability_evaluated?: boolean;
+  };
+}
+
+export interface CryptoBtcLiveShadowActionResult {
+  status: string;
+  research_only: boolean;
+  order_placed: boolean;
+  live_execution: boolean;
+  capital_committed_inr: number;
+  result?: {
+    decision_at?: string;
+    market_direction?: string;
+    shadow_status?: string;
+    reason?: string;
+    proof_bridge?: { decision_btc_price?: number };
+    option_entry?: CryptoBtcShadowClick['option'];
+  };
+}
+
 export async function getCryptoBtcDashboardStatus(): Promise<CryptoBtcDashboardStatus> {
   const response = await fetch(`${ALPHAPILOT_API_BASE}/v1/dashboard/crypto/btc/status`, {
     method: 'GET',
@@ -108,4 +143,24 @@ export async function getCryptoBtcDashboardStatus(): Promise<CryptoBtcDashboardS
     throw new Error(`Crypto BTC dashboard API ${response.status}: ${await response.text().catch(() => response.statusText)}`);
   }
   return response.json() as Promise<CryptoBtcDashboardStatus>;
+}
+
+async function postCryptoAction<T>(path: string): Promise<T> {
+  const response = await fetch(`${ALPHAPILOT_API_BASE}${path}`, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(payload?.detail || `Crypto action failed (${response.status})`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export function runCryptoBtcUnderlyingBacktest(): Promise<CryptoBtcUnderlyingBacktestResult> {
+  return postCryptoAction('/v1/dashboard/crypto/btc/actions/first-24h-underlying-backtest');
+}
+
+export function generateCryptoBtcLiveShadowSetup(): Promise<CryptoBtcLiveShadowActionResult> {
+  return postCryptoAction('/v1/dashboard/crypto/btc/actions/live-shadow-click');
 }
