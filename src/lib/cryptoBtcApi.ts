@@ -118,6 +118,19 @@ export interface CryptoBtcUnderlyingBacktestResult {
   };
 }
 
+export interface CryptoBtcBacktestJob {
+  job_id: string;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+  phase?: string;
+  completed_clicks: number;
+  total_clicks: number;
+  progress_pct: number;
+  started_at?: string;
+  finished_at?: string | null;
+  error?: string | null;
+  result?: CryptoBtcUnderlyingBacktestResult | null;
+}
+
 export interface CryptoBtcLiveShadowActionResult {
   status: string;
   research_only: boolean;
@@ -157,8 +170,19 @@ async function postCryptoAction<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function runCryptoBtcUnderlyingBacktest(): Promise<CryptoBtcUnderlyingBacktestResult> {
+export function runCryptoBtcUnderlyingBacktest(): Promise<CryptoBtcBacktestJob> {
   return postCryptoAction('/v1/dashboard/crypto/btc/actions/first-24h-underlying-backtest');
+}
+
+export async function getCryptoBtcUnderlyingBacktestJob(jobId: string): Promise<CryptoBtcBacktestJob> {
+  const response = await fetch(`${ALPHAPILOT_API_BASE}/v1/dashboard/crypto/btc/actions/first-24h-underlying-backtest/${encodeURIComponent(jobId)}`, {
+    method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store',
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(payload?.detail || `Backtest progress unavailable (${response.status})`);
+  }
+  return response.json() as Promise<CryptoBtcBacktestJob>;
 }
 
 export function generateCryptoBtcLiveShadowSetup(): Promise<CryptoBtcLiveShadowActionResult> {
